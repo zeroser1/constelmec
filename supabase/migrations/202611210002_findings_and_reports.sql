@@ -31,13 +31,14 @@ create table public.finding_events(
 create table public.inspection_corrections(
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id),
-  inspection_control_id uuid not null references public.inspection_controls(id),
+  inspection_control_id uuid not null,
   actor_user_id uuid not null references auth.users(id),
   corrected_result public.control_result not null,
   reason text not null check(length(trim(reason)) between 3 and 2000),
   created_at timestamptz not null default now(),
   idempotency_key uuid not null,
-  unique(company_id,idempotency_key)
+  unique(company_id,idempotency_key),
+  foreign key(inspection_control_id,company_id) references public.inspection_controls(id,company_id)
 );
 create table public.report_versions(
   id uuid primary key default gen_random_uuid(),
