@@ -22,9 +22,13 @@ revoke all on function app_private.has_membership(uuid,public.member_role[]) fro
 grant usage on schema app_private to authenticated;
 grant execute on function app_private.has_membership(uuid,public.member_role[]) to authenticated;
 create or replace function app_private.is_technician(p_company uuid) returns boolean language sql stable security definer set search_path='' as $$select app_private.has_membership(p_company,array['admin','technician']::public.member_role[])$$;
+revoke all on function app_private.is_technician(uuid) from public;
 grant execute on function app_private.is_technician(uuid) to authenticated;
 create or replace function app_private.audit_immutable() returns trigger language plpgsql set search_path='' as $$begin raise exception 'Audit events are append-only'; end$$;
 create trigger audit_no_update before update or delete on public.audit_events for each row execute function app_private.audit_immutable();
+-- Technical inspection rows and customer observations are immutable: corrections must be separate records.
+create trigger controls_no_update before update or delete on public.inspection_controls for each row execute function app_private.audit_immutable();
+create trigger observations_no_update before update or delete on public.customer_observations for each row execute function app_private.audit_immutable();
 alter table public.companies enable row level security;
 alter table public.memberships enable row level security;
 alter table public.facilities enable row level security;
@@ -42,6 +46,8 @@ create policy controls_read on public.inspection_controls for select to authenti
 create policy observations_read on public.customer_observations for select to authenticated using(app_private.has_membership(company_id));
 create policy audit_read on public.audit_events for select to authenticated using(app_private.has_membership(company_id,array['admin','technician']::public.member_role[]));
 create policy observations_insert on public.customer_observations for insert to authenticated with check(author_user_id=(select auth.uid()) and app_private.has_membership(company_id));
+-- Explicitly prevent API roles from modifying immutable records; the insert policy is the only client write.
+revoke update,delete on public.customer_observations from anon,authenticated;
 -- Writes to technical tables and audit_events deliberately disabled for clients.
 -- Implement transactional SECURITY DEFINER RPCs with authorization, validation, and idempotency.
 revoke insert,update,delete on public.companies,public.memberships,public.facilities,public.gates,public.visits,public.inspection_controls,public.audit_events from anon,authenticated;
