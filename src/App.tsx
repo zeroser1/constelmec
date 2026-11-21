@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import QRDemo from './QRDemo';
 import { Activity, ArrowLeft, ArrowRight, Building2, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, DoorOpen, FileText, HardHat, History, LayoutDashboard, Menu, Plus, QrCode, Search, ShieldAlert, Wrench, X, AlertTriangle, Send } from 'lucide-react';
 
 type Role = 'technician' | 'customer';
@@ -22,6 +23,7 @@ const today = () => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', time
 export default function App() {
   const [role, setRole] = useState<Role>('technician');
   const [demoSession, setDemoSession] = useState(false);
+  const [qrDemo, setQrDemo] = useState(false);
   const [loginRole, setLoginRole] = useState<Role>('technician');
   const [gates, setGates] = useState(initialGates);
   const [selected, setSelected] = useState<string | null>(null);
@@ -72,6 +74,7 @@ export default function App() {
     </main>
     <div className="login-footer">CONSTELMEC · MAINTENANCE</div>
   </div>;
+  if (qrDemo) return <QRDemo onBack={() => setQrDemo(false)}/>;
   return <div className="app">
     <aside className={mobileMenu ? 'sidebar open' : 'sidebar'}>
       <div className="brand"><div className="brand-icon"><span className="brand-mark" aria-hidden="true">C</span></div><div><strong>CONSTELMEC</strong><small>MAINTENANCE</small></div></div>
@@ -89,7 +92,7 @@ export default function App() {
       <div className="content">
         {message && <div className="toast" role="status"><CheckCircle2 size={18}/>{message}<button aria-label="Cerrar aviso" onClick={() => setMessage('')}><X size={17}/></button></div>}
         {!gate ? <>
-          <div className="page-head"><div><div className="eyebrow"><span className="live-dot"/> VISTA {role === 'technician' ? 'TÉCNICA' : 'DEL CLIENTE'}</div><h1>{role === 'technician' ? 'Control de mantenimiento' : 'Mis instalaciones'}</h1><p>{role === 'technician' ? 'Estado de los equipos, intervenciones y próximos mantenimientos.' : 'Consultá el estado de tus portones y registrá observaciones.'}</p></div><button className="btn primary" onClick={() => showMessage('El escaneo QR se habilitará con autenticación y control de acceso por empresa.')}><QrCode size={18}/> Escanear QR</button></div>
+          <div className="page-head"><div><div className="eyebrow"><span className="live-dot"/> VISTA {role === 'technician' ? 'TÉCNICA' : 'DEL CLIENTE'}</div><h1>{role === 'technician' ? 'Control de mantenimiento' : 'Mis instalaciones'}</h1><p>{role === 'technician' ? 'Estado de los equipos, intervenciones y próximos mantenimientos.' : 'Consultá el estado de tus portones y registrá observaciones.'}</p></div><button className="btn primary" onClick={() => setQrDemo(true)}><QrCode size={18}/> Escanear QR</button></div>
           <div className="stats"><div className="stat"><div className="stat-icon blue"><DoorOpen size={20}/></div><span>Portones registrados</span><strong>{counts.total}</strong><small>Equipos en instalaciones</small></div><div className="stat"><div className="stat-icon green"><CheckCircle2 size={20}/></div><span>Operativos</span><strong>{counts.good}</strong><small>Sin alertas activas</small></div><div className="stat"><div className="stat-icon amber"><AlertTriangle size={20}/></div><span>Con observaciones</span><strong>{counts.warning}</strong><small>Requieren seguimiento</small></div><div className="stat"><div className="stat-icon red"><ShieldAlert size={20}/></div><span>Fuera de servicio</span><strong>{counts.danger}</strong><small>Requieren intervención</small></div></div>
           <section className="panel"><div className="panel-head"><div><h2>Portones de la instalación</h2><p>Seleccioná un equipo para consultar su ficha y mantenimiento.</p></div><span className="count-pill">{filtered.length} equipos</span></div><div className="tools"><div className="search"><Search size={18}/><input aria-label="Buscar portones" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, código o sector..."/></div><div className="filters">{['Todos','Operativo','Con observaciones','Fuera de servicio'].map(f => <button key={f} className={filter === f ? 'filter active' : 'filter'} onClick={() => setFilter(f)}>{f}</button>)}</div></div>
           <div className="gate-list">{filtered.map(g => <button className="gate-row" key={g.id} onClick={() => chooseGate(g.id)}><div className="gate-symbol"><DoorOpen size={22}/></div><div className="gate-info"><strong>{g.name}</strong><span>{g.code} <b>·</b> {g.location}</span></div><div className="gate-date"><span>Último mantenimiento</span><strong>{g.last}</strong></div><span className={'status '+badgeClass(g.state)}><span className="status-dot"/>{g.state}</span><ArrowRight size={19} className="row-arrow"/></button>)}{filtered.length === 0 && <div className="empty">No se encontraron portones con esos filtros.</div>}</div></section>
