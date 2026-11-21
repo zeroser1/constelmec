@@ -72,3 +72,8 @@ footer{color:#8495a8}
 
 /* Constelmec approved deep navy header */
 .login-screen .login-brand,.app .sidebar{background-color:#10263e}
+
+/* Brand mark is a red arc only. The previous letter C was an invented placeholder. */
+.login-symbol{font-size:0!important;display:block!important;width:44px;height:31px;border:0!important;border-top:5px solid #ed2437!important;border-left:5px solid #ed2437!important;border-radius:55% 50% 0 0!important;transform:rotate(-16deg)!important;flex-shrink:0}
+.brand-mark{display:block!important;font-size:0!important;width:37px;height:25px;border-top:5px solid #ed2437;border-left:5px solid #ed2437;border-radius:55% 50% 0 0;transform:rotate(-16deg)}
+.brand-mark:after{display:none!important}
