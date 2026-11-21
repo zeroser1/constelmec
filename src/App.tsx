@@ -62,7 +62,7 @@ export default function App() {
   };
   if (realAccess) return <RealAccess onDemo={() => setRealAccess(false)}/>;
   if (!demoSession) return <div className="login-screen">
-    <div className="login-brand"><span className="login-symbol">C</span><span>CONSTELMEC</span></div>
+    <div className="login-brand"><span className="login-symbol" aria-hidden="true"/><span>CONSTELMEC</span></div>
     <main className="login-panel">
       <div className="login-kicker">PLATAFORMA DE MANTENIMIENTO</div>
       <h1>Bienvenido</h1>
@@ -71,16 +71,16 @@ export default function App() {
         <button className={loginRole === 'technician' ? 'active' : ''} onClick={() => setLoginRole('technician')}><HardHat size={19}/> Técnico</button>
         <button className={loginRole === 'customer' ? 'active' : ''} onClick={() => setLoginRole('customer')}><Building2 size={19}/> Cliente</button>
       </div>
-      <div className="login-demo-notice"><ShieldAlert size={19}/><span>Vista de demostración. La autenticación y los permisos reales se habilitarán al conectar Supabase.</span></div>
+      <div className="login-demo-notice"><ShieldAlert size={19}/><span>Vista de demostración. El acceso real ya utiliza Supabase; esta vista usa datos ficticios.</span></div>
       <button className="login-enter" onClick={() => {setRole(loginRole);setDemoSession(true);setSelected(null);}}>Explorar demo de {loginRole === 'technician' ? 'técnico' : 'cliente'} <ArrowRight size={20}/></button>
-      <p className="login-fineprint">No ingreses contraseñas ni información real. Los cambios no se guardan en un servidor.</p>
+      <p className="login-fineprint">Este explorador no requiere contraseña y no guarda datos en el servidor.</p>
     </main>
     <div className="login-footer">CONSTELMEC · MAINTENANCE</div>
   </div>;
   if (qrDemo) return <QRDemo onBack={() => setQrDemo(false)}/>;
   return <div className="app">
     <aside className={mobileMenu ? 'sidebar open' : 'sidebar'}>
-      <div className="brand"><div className="brand-icon"><span className="brand-mark" aria-hidden="true">C</span></div><div><strong>CONSTELMEC</strong><small>MAINTENANCE</small></div></div>
+      <div className="brand"><div className="brand-icon"><span className="brand-mark" aria-hidden="true"/></div><div><strong>CONSTELMEC</strong><small>MAINTENANCE</small></div></div>
       <div className="workspace"><div className="workspace-logo"><Building2 size={19}/></div><div><strong>Empresa de ejemplo</strong><small>Entorno de demostración</small></div><ChevronDown size={16}/></div>
       <div className="nav-label">ESPACIO DE TRABAJO</div>
       <button className={!selected ? 'nav active' : 'nav'} onClick={() => { setSelected(null); setMobileMenu(false); }}><LayoutDashboard size={19}/> Panel general</button>
