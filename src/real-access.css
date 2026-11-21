@@ -5,3 +5,14 @@
 
 /* Constelmec approved deep navy header */
 .real-header{background:linear-gradient(115deg,#10263e 0%,#1a344f 100%)}
+/* Force the approved light card surfaces even on Android dark-mode browsers. */
+.real-shell{color-scheme:light;background:#f3f5f8!important;color:#171e2b!important}
+.real-panel{background:#fff!important;color:#171e2b!important;border-color:#e0e5ed!important}
+.real-panel h1,.real-panel h2,.real-panel label,.real-gate strong{color:#171e2b!important}
+.real-panel p{color:#596779!important}
+.real-panel input{background:#fff!important;color:#182336!important;border:1px solid #cbd4e0!important;-webkit-text-fill-color:#182336}
+.real-panel input::placeholder{color:#8a96a5}
+.real-demo,.real-empty{background:#f3f6fa!important;color:#43536a!important}
+.real-outline{background:#fff!important;color:#19304c!important;border-color:#b8c6d7!important}
+.real-primary{background:#cc071d!important;color:#fff!important}
+.real-header{background:linear-gradient(115deg,#10263e,#1a344f)!important;color:#fff!important}
