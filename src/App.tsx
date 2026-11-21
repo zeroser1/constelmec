@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import QRDemo from './QRDemo';
+import RealAccess from './RealAccess';
 import { Activity, ArrowLeft, ArrowRight, Building2, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, DoorOpen, FileText, HardHat, History, LayoutDashboard, Menu, Plus, QrCode, Search, ShieldAlert, Wrench, X, AlertTriangle, Send } from 'lucide-react';
 
 type Role = 'technician' | 'customer';
@@ -23,6 +24,7 @@ const today = () => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', time
 export default function App() {
   const [role, setRole] = useState<Role>('technician');
   const [demoSession, setDemoSession] = useState(false);
+  const [realAccess, setRealAccess] = useState(true);
   const [qrDemo, setQrDemo] = useState(false);
   const [loginRole, setLoginRole] = useState<Role>('technician');
   const [gates, setGates] = useState(initialGates);
@@ -58,6 +60,7 @@ export default function App() {
     setObservationText('');
     showMessage('Observación guardada solo en esta demostración. No crea una falla técnica.');
   };
+  if (realAccess) return <RealAccess onDemo={() => setRealAccess(false)}/>;
   if (!demoSession) return <div className="login-screen">
     <div className="login-brand"><span className="login-symbol">C</span><span>CONSTELMEC</span></div>
     <main className="login-panel">
