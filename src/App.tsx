@@ -21,6 +21,8 @@ const today = () => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', time
 
 export default function App() {
   const [role, setRole] = useState<Role>('technician');
+  const [demoSession, setDemoSession] = useState(false);
+  const [loginRole, setLoginRole] = useState<Role>('technician');
   const [gates, setGates] = useState(initialGates);
   const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -54,6 +56,22 @@ export default function App() {
     setObservationText('');
     showMessage('Observación guardada solo en esta demostración. No crea una falla técnica.');
   };
+  if (!demoSession) return <div className="login-screen">
+    <div className="login-brand"><span className="login-symbol">C</span><span>CONSTELMEC</span></div>
+    <main className="login-panel">
+      <div className="login-kicker">PLATAFORMA DE MANTENIMIENTO</div>
+      <h1>Bienvenido</h1>
+      <p>Accedé al espacio de mantenimiento de portones industriales.</p>
+      <div className="login-role-switch" aria-label="Elegir perfil">
+        <button className={loginRole === 'technician' ? 'active' : ''} onClick={() => setLoginRole('technician')}><HardHat size={19}/> Técnico</button>
+        <button className={loginRole === 'customer' ? 'active' : ''} onClick={() => setLoginRole('customer')}><Building2 size={19}/> Cliente</button>
+      </div>
+      <div className="login-demo-notice"><ShieldAlert size={19}/><span>Vista de demostración. La autenticación y los permisos reales se habilitarán al conectar Supabase.</span></div>
+      <button className="login-enter" onClick={() => {setRole(loginRole);setDemoSession(true);setSelected(null);}}>Explorar demo de {loginRole === 'technician' ? 'técnico' : 'cliente'} <ArrowRight size={20}/></button>
+      <p className="login-fineprint">No ingreses contraseñas ni información real. Los cambios no se guardan en un servidor.</p>
+    </main>
+    <div className="login-footer">CONSTELMEC · MAINTENANCE</div>
+  </div>;
   return <div className="app">
     <aside className={mobileMenu ? 'sidebar open' : 'sidebar'}>
       <div className="brand"><div className="brand-icon"><span className="brand-mark" aria-hidden="true">C</span></div><div><strong>CONSTELMEC</strong><small>MAINTENANCE</small></div></div>
@@ -67,7 +85,7 @@ export default function App() {
     </aside>
     {mobileMenu && <button className="scrim" aria-label="Cerrar menú" onClick={() => setMobileMenu(false)}/>}
     <main className="main">
-      <header className="topbar"><button className="mobile-menu icon-btn" aria-label="Abrir menú" onClick={() => setMobileMenu(true)}><Menu size={21}/></button><div className="breadcrumbs">Constelmec <span>/</span> {gate ? gate.code : 'Panel general'}</div><div className="top-actions"><span className="demo-pill">● Demo interactiva</span><div className="role-toggle" aria-label="Cambiar vista"><button className={role === 'technician' ? 'selected' : ''} onClick={() => { setRole('technician'); setSelected(null); }}><HardHat size={15}/> Técnico</button><button className={role === 'customer' ? 'selected' : ''} onClick={() => { setRole('customer'); setSelected(null); }}><Building2 size={15}/> Cliente</button></div></div></header>
+      <header className="topbar"><button className="mobile-menu icon-btn" aria-label="Abrir menú" onClick={() => setMobileMenu(true)}><Menu size={21}/></button><div className="breadcrumbs">Constelmec <span>/</span> {gate ? gate.code : 'Panel general'}</div><div className="top-actions"><button className="logout-demo" onClick={() => {setDemoSession(false);setSelected(null);setVisitOpen(false);}} aria-label="Volver al acceso">Salir</button><span className="demo-pill">● Demo interactiva</span><div className="role-toggle" aria-label="Cambiar vista"><button className={role === 'technician' ? 'selected' : ''} onClick={() => { setRole('technician'); setSelected(null); }}><HardHat size={15}/> Técnico</button><button className={role === 'customer' ? 'selected' : ''} onClick={() => { setRole('customer'); setSelected(null); }}><Building2 size={15}/> Cliente</button></div></div></header>
       <div className="content">
         {message && <div className="toast" role="status"><CheckCircle2 size={18}/>{message}<button aria-label="Cerrar aviso" onClick={() => setMessage('')}><X size={17}/></button></div>}
         {!gate ? <>
