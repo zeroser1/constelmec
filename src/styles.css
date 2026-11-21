@@ -69,3 +69,6 @@ footer{color:#8495a8}
   .status.danger{background:#ffe5e7;color:#ba1829}
   .progress span{background:linear-gradient(90deg,#25a944,#159335)}
 }
+
+/* Constelmec approved deep navy header */
+.login-screen .login-brand,.app .sidebar{background-color:#10263e}
