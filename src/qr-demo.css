@@ -8,3 +8,5 @@
 .qr-header{background:linear-gradient(115deg,#10263e 0%,#1a344f 100%)}
 /* Inspection screens also retain their approved light appearance. */
 .qr-demo{color-scheme:light;background:#f3f5f8!important;color:#171e2b!important}.qr-body,.qr-group-items,.qr-bottom{background:#fff!important;color:#171e2b!important}.qr-group-heading{background:#f4f5f7!important;color:#171e2b!important}.qr-control-title strong,.qr-title h1{color:#171e2b!important}.qr-textarea{background:#fff!important;color:#171e2b!important}.qr-actions button{background:#f2f3f5;color:#232a34}.qr-actions button.selected{background:#fbe5e7}.qr-header{background:linear-gradient(115deg,#10263e,#1a344f)!important}
+
+.qr-photo-credit{font-size:10px!important;color:#718093!important;line-height:1.4;margin:6px 2px 12px!important}.qr-photo-credit a{color:#52677e;text-decoration:underline}.qr-gate-visual img{object-fit:cover;display:block}
