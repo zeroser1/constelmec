@@ -1,0 +1,56 @@
+/* Constelmec light / dark themes: deliberate colors, never browser auto-inversion. */
+html[data-theme="light"]{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+.constelmec-theme-switch{position:fixed;right:12px;top:10px;z-index:1000;display:flex;align-items:center;gap:6px;min-height:34px;padding:6px 10px;border:1px solid #ffffff55;border-radius:22px;background:#233b55;color:#fff;font:700 11px Arial,sans-serif;box-shadow:0 3px 12px #0002;cursor:pointer}
+.constelmec-theme-switch:hover{background:#314d6d}
+@media(min-width:600px){.constelmec-theme-switch{top:14px;right:18px}}
+html[data-theme="dark"] body,html[data-theme="dark"] #root{background:#0b1522;color:#ecf1f7}
+html[data-theme="dark"] .real-shell{background:#0b1522!important;color:#edf2f9!important}
+html[data-theme="dark"] .real-header,html[data-theme="dark"] .qr-header{background:linear-gradient(115deg,#081a2d,#112a43)!important}
+html[data-theme="dark"] .real-panel{background:#172536!important;border-color:#33465b!important;color:#f0f4fa!important;box-shadow:0 8px 30px #0004}
+html[data-theme="dark"] .real-panel h1,html[data-theme="dark"] .real-panel h2,html[data-theme="dark"] .real-panel label,html[data-theme="dark"] .real-gate strong{color:#f1f5fa!important}
+html[data-theme="dark"] .real-panel p{color:#b6c4d3!important}
+html[data-theme="dark"] .real-panel input{background:#223247!important;color:#f2f5fa!important;-webkit-text-fill-color:#f2f5fa;border-color:#53647b!important}
+html[data-theme="dark"] .real-panel input::placeholder{color:#9aaabc}
+html[data-theme="dark"] .real-demo,html[data-theme="dark"] .real-empty,html[data-theme="dark"] .real-company{background:#223247!important;color:#c9d5e2!important}
+html[data-theme="dark"] .real-outline{background:#25364b!important;color:#f1f5fa!important;border-color:#52667d!important}
+html[data-theme="dark"] .real-gate{background:#1b2b3d!important;border-color:#3c5065!important}
+html[data-theme="dark"] .real-gate small,html[data-theme="dark"] .real-company span{color:#a9bacd}
+html[data-theme="dark"] .real-link{color:#ff8a99}
+html[data-theme="dark"] .real-message{background:#42303a;color:#ffccd1!important}
+html[data-theme="dark"] .real-primary{background:#cc071d!important;color:#fff!important}
+html[data-theme="dark"] .qr-demo{background:#0b1522!important;color:#f1f5fa!important}
+html[data-theme="dark"] .qr-body,html[data-theme="dark"] .qr-group-items,html[data-theme="dark"] .qr-bottom{background:#172536!important;color:#f1f5fa!important}
+html[data-theme="dark"] .qr-title h1,html[data-theme="dark"] .qr-gate-title h2,html[data-theme="dark"] .qr-control-title strong,html[data-theme="dark"] .qr-group-heading strong,html[data-theme="dark"] .qr-specs strong,html[data-theme="dark"] .qr-field{color:#f1f5fa!important}
+html[data-theme="dark"] .qr-title p,html[data-theme="dark"] .qr-location,html[data-theme="dark"] .qr-specs span,html[data-theme="dark"] .qr-count,html[data-theme="dark"] .qr-hint{color:#b6c4d3!important}
+html[data-theme="dark"] .qr-group,html[data-theme="dark"] .qr-specs{border-color:#3d5065!important}
+html[data-theme="dark"] .qr-group-heading{background:#223247!important;color:#edf3fa!important}
+html[data-theme="dark"] .qr-group-heading span{color:#b9c8d8}
+html[data-theme="dark"] .qr-control{border-color:#34485d!important}
+html[data-theme="dark"] .qr-choice:not(.is-ok):not(.is-fault):not(.is-na){background:#2a3b50!important;border-color:#506176!important;color:#e4ebf3!important}
+html[data-theme="dark"] .qr-choice.is-ok{background:#187e35!important;border-color:#187e35!important;color:#fff!important}
+html[data-theme="dark"] .qr-choice.is-fault{background:#b51e32!important;border-color:#b51e32!important;color:#fff!important}
+html[data-theme="dark"] .qr-choice.is-na{background:#5b6678!important;border-color:#5b6678!important;color:#fff!important}
+html[data-theme="dark"] .qr-textarea{background:#223247!important;color:#f2f5fa!important;border-color:#53647b!important}
+html[data-theme="dark"] .qr-upload{background:#223247!important;border-color:#53647b!important;color:#e0eaf5!important}
+html[data-theme="dark"] .qr-actions button{background:#25364b!important;color:#f1f5fa!important}
+html[data-theme="dark"] .qr-actions button.selected{background:#56303b!important;border-color:#9c4a5b!important}
+html[data-theme="dark"] .qr-fault-pill,html[data-theme="dark"] .qr-alert{background:#422633!important;border-color:#884353!important;color:#ffb5c0!important}
+html[data-theme="dark"] .qr-offline{background:#203c35!important;color:#a6e6bd!important}
+html[data-theme="dark"] .qr-active{background:#203c35!important;color:#a6e6bd!important}
+html[data-theme="dark"] .qr-bottom{border-color:#33465b!important}
+html[data-theme="dark"] .qr-bottom button{color:#c7d4e3!important}
+html[data-theme="dark"] .qr-bottom button.selected{color:#ff7081!important}
+html[data-theme="dark"] .qr-reset{background:#223247;color:#c4d2e0;border-color:#52647b}
+html[data-theme="dark"] .qr-photo-credit,html[data-theme="dark"] .qr-photo-credit a{color:#a9bdd0!important}
+html[data-theme="dark"] .login-screen{background:linear-gradient(180deg,#081a2d 0,#112a43 31%,#0b1522 31.1%)!important;color:#f1f5fa}
+html[data-theme="dark"] .login-panel{background:#172536!important;border-color:#33465b!important;color:#f1f5fa!important}
+html[data-theme="dark"] .login-panel h1,html[data-theme="dark"] .login-panel p{color:#f1f5fa!important}
+html[data-theme="dark"] .login-role-switch button{background:#223247!important;color:#e2ebf5!important;border-color:#52647b!important}
+html[data-theme="dark"] .login-role-switch button.active{background:#31465f!important;border-color:#8da5be!important}
+html[data-theme="dark"] .login-demo-notice{background:#3c3429!important;color:#f4d9ae!important;border-color:#68533a!important}
+html[data-theme="dark"] .app{background:#0b1522;color:#edf2f9}
+html[data-theme="dark"] .main,html[data-theme="dark"] .content{background:#0b1522!important;color:#edf2f9!important}
+html[data-theme="dark"] .topbar,html[data-theme="dark"] .panel,html[data-theme="dark"] .stat,html[data-theme="dark"] .detail-card{background:#172536!important;border-color:#33465b!important;color:#f1f5fa!important}
+html[data-theme="dark"] .page-head h1,html[data-theme="dark"] .panel h2,html[data-theme="dark"] .panel h3,html[data-theme="dark"] .stat strong{color:#f1f5fa!important}
+html[data-theme="dark"] .search input,html[data-theme="dark"] .check-choice{background:#223247!important;color:#f1f5fa!important;border-color:#53647b!important}
