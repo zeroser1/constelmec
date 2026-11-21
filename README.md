@@ -1,26 +1,36 @@
 # Constelmec Maintenance
 
-MVP mobile-first para mantenimiento de portones industriales.
+Aplicación web progresiva (PWA) mobile-first para mantenimiento de portones industriales.
 
-## Estado
-**Prototipo funcional con datos ficticios.** No está conectado a Supabase, no tiene autenticación ni sincronización offline. No utilizar con clientes ni registrar información sensible hasta implementar y verificar RLS, auditoría, almacenamiento privado y controles de acceso.
+> **Estado: MVP de interfaz / demo técnica.** Aún no está listo para uso operativo con clientes. No hay autenticación, backend conectado, auditoría real ni persistencia de datos. Los datos de muestra y el cambio de roles son exclusivamente demostrativos.
 
-## Desarrollo local
+## Ejecutar
+
+Requiere Node.js 22.
+
 ```bash
 npm install
+npm run build
 npm run dev
 ```
 
-## Stack
-React 19, TypeScript, Vite. Preparado para PWA, Supabase y flujos auditables en próximas etapas.
+Abrí la URL local que muestra Vite. Para instalar como PWA, publicá en un dominio HTTPS compatible y abrí la opción de instalación del navegador.
 
-## Flujos de demostración
-- Técnico: seleccionar portón, iniciar visita, completar controles, registrar observación y cerrar visita.
-- Cliente: consultar estado e historial ficticio y enviar una observación de demostración.
-- Datos en memoria: los cambios se reinician al recargar.
+## Estructura
+- `src/`: panel técnico y portal cliente con flujos de demostración.
+- `public/manifest.webmanifest`, `public/icon.svg`, `public/sw.js`: identidad PWA y caché de shell público.
+- `supabase/migrations/`: migración SQL inicial **no aplicada**; requiere revisión de seguridad y pruebas.
+- `docs/SECURITY.md`: límites de seguridad y requisitos antes de producción.
+- `docs/ROADMAP.md`: avance y pendientes.
+- `.github/workflows/ci.yml`: compilación y verificación de tipos en GitHub Actions.
 
-## Próximas etapas
-1. Supabase Auth, modelo multiempresa y RLS con pruebas de aislamiento.
-2. Eventos de auditoría append-only, visitas e inspecciones versionadas.
-3. QR, fotos privadas, IndexedDB offline y sincronización idempotente.
-4. Informes PDF versionados, notificaciones y archivo seguro.
+## Reglas fundamentales
+- Nunca guardar secretos en `VITE_*` o en GitHub.
+- El código QR no concede acceso a información.
+- El cliente no modifica inspecciones técnicas.
+- El historial técnico será append-only y toda corrección estará atribuida a su autor.
+- Cerrar una visita no levanta una condición fuera de servicio.
+- No guardar ni cachear respuestas privadas en el service worker.
+
+## Próximo hito
+Conectar un proyecto Supabase con Auth, RLS probado, RPCs transaccionales de escritura y un entorno de hosting apto para uso comercial. Luego implementar offline, fotos privadas, informes y notificaciones.
