@@ -60,7 +60,7 @@ export default function App() {
     setObservationText('');
     showMessage('Observación guardada solo en esta demostración. No crea una falla técnica.');
   };
-  if (realAccess) return <RealAccess onDemo={() => setRealAccess(false)}/>;
+  if (realAccess) return <RealAccess onDemo={() => {setRole('technician');setDemoSession(true);setRealAccess(false);setSelected(null);}}/>;
   if (!demoSession) return <div className="login-screen">
     <div className="login-brand"><span className="login-symbol" aria-hidden="true"/><span>CONSTELMEC</span></div>
     <main className="login-panel">
