@@ -54,3 +54,12 @@ html[data-theme="dark"] .main,html[data-theme="dark"] .content{background:#0b152
 html[data-theme="dark"] .topbar,html[data-theme="dark"] .panel,html[data-theme="dark"] .stat,html[data-theme="dark"] .detail-card{background:#172536!important;border-color:#33465b!important;color:#f1f5fa!important}
 html[data-theme="dark"] .page-head h1,html[data-theme="dark"] .panel h2,html[data-theme="dark"] .panel h3,html[data-theme="dark"] .stat strong{color:#f1f5fa!important}
 html[data-theme="dark"] .search input,html[data-theme="dark"] .check-choice{background:#223247!important;color:#f1f5fa!important;border-color:#53647b!important}
+
+/* Mobile navigation safety: theme control occupies its own header row, never overlays role switch. */
+@media(max-width:750px){
+  .constelmec-theme-switch{position:absolute!important;top:154px!important;right:12px!important;z-index:50!important;min-height:32px!important;padding:5px 9px!important}
+  .app .topbar{padding-right:120px!important;min-height:88px!important;align-items:flex-start!important}
+  .app .top-actions{flex-wrap:wrap!important;gap:6px!important}
+  .app .role-toggle{display:flex!important;position:relative!important;z-index:1!important}
+  .app .role-toggle button{min-width:72px!important}
+}
