@@ -77,3 +77,16 @@ footer{color:#8495a8}
 .login-symbol{font-size:0!important;display:block!important;width:44px;height:31px;border:0!important;border-top:5px solid #ed2437!important;border-left:5px solid #ed2437!important;border-radius:55% 50% 0 0!important;transform:rotate(-16deg)!important;flex-shrink:0}
 .brand-mark{display:block!important;font-size:0!important;width:37px;height:25px;border-top:5px solid #ed2437;border-left:5px solid #ed2437;border-radius:55% 50% 0 0;transform:rotate(-16deg)}
 .brand-mark:after{display:none!important}
+
+/* --- Loading skeletons + error boundary (added with async data layer) --- */
+.skeleton{position:relative;overflow:hidden;background:#e7edf4}
+.skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,#ffffffb0,transparent);animation:skeleton-shimmer 1.3s infinite}
+@keyframes skeleton-shimmer{100%{transform:translateX(100%)}}
+.skeleton-row{display:flex;align-items:center;gap:15px;padding:17px 24px;border-bottom:1px solid #eef1ee}
+.skeleton-row:last-child{border-bottom:0}
+@media(prefers-reduced-motion:reduce){.skeleton::after{animation:none}}
+.boundary{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px;color:var(--navy,#142c48);background:var(--canvas,#f3f6fa)}
+.boundary svg{color:var(--red,#d52c38)}
+.boundary h1{font:800 24px Manrope,sans-serif;margin:0}
+.boundary p{color:var(--muted,#6d7c8e);font-size:14px;max-width:360px;margin:0}
+.boundary button{margin-top:6px;min-height:44px;padding:0 22px;border:0;border-radius:10px;background:var(--red,#d52c38);color:#fff;font-weight:800;font-size:13px}

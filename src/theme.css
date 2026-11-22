@@ -4,6 +4,9 @@ html[data-theme="dark"]{color-scheme:dark}
 .constelmec-theme-switch{position:fixed;right:12px;top:10px;z-index:1000;display:flex;align-items:center;gap:6px;min-height:34px;padding:6px 10px;border:1px solid #ffffff55;border-radius:22px;background:#233b55;color:#fff;font:700 11px Arial,sans-serif;box-shadow:0 3px 12px #0002;cursor:pointer}
 .constelmec-theme-switch:hover{background:#314d6d}
 @media(min-width:600px){.constelmec-theme-switch{top:14px;right:18px}}
+/* Desktop: reserve space in the demo topbar so the fixed theme switch never
+   overlaps (and intercepts clicks on) the top-right role toggle. */
+@media(min-width:751px){.app .topbar{padding-right:120px}}
 html[data-theme="dark"] body,html[data-theme="dark"] #root{background:#0b1522;color:#ecf1f7}
 html[data-theme="dark"] .real-shell{background:#0b1522!important;color:#edf2f9!important}
 html[data-theme="dark"] .real-header,html[data-theme="dark"] .qr-header{background:linear-gradient(115deg,#081a2d,#112a43)!important}

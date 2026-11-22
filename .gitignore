@@ -5,3 +5,11 @@ dist/
 !.env.example
 .DS_Store
 *.local
+
+# Test + TS build artifacts
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# local ChatGPT bridge (never commit)
+_bridge/
