@@ -1,5 +1,5 @@
 import {useMemo,useState} from 'react';
-import {AlertTriangle,Building2,CalendarDays,CheckCircle2,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,ShieldCheck,Wrench} from 'lucide-react';
+import {AlertTriangle,Building2,CalendarDays,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,ShieldCheck,Wrench} from 'lucide-react';
 import './admin.css';
 export type ServiceOrder={id:string;company_id:string;service_type:string;status:string;scheduled_start:string;scheduled_end:string;completed_at:string|null;next_service_at:string|null;notes:string|null;gates:{code:string;description:string}|null;facilities:{name:string}|null;technician_profiles:{first_name:string;last_name:string}|null};
 export type Technician={id:string;company_id:string;first_name:string;last_name:string;work_phone:string|null;work_email:string|null;specialty:string|null;driving_authorized:boolean;license_expires_on:string|null;active:boolean};
