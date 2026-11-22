@@ -63,3 +63,5 @@ html[data-theme="dark"] .search input,html[data-theme="dark"] .check-choice{back
   .app .role-toggle{display:flex!important;position:relative!important;z-index:1!important}
   .app .role-toggle button{min-width:72px!important}
 }
+
+@media(max-width:750px){.app .topbar{height:auto!important;min-height:126px!important;display:grid!important;grid-template-columns:32px minmax(0,1fr)!important;grid-template-rows:44px auto!important;column-gap:12px!important;row-gap:7px!important;padding:13px 14px 12px!important;align-items:center!important}.app .mobile-menu{grid-column:1;grid-row:1}.app .breadcrumbs{grid-column:2;grid-row:1;font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.app .top-actions{grid-column:1/-1;grid-row:2;display:flex!important;justify-content:space-between!important;gap:8px!important;flex-wrap:nowrap!important}.app .role-toggle{margin-left:auto!important}.app .demo-pill{display:none!important}.app .logout-demo{flex-shrink:0}.constelmec-theme-switch{position:fixed!important;top:auto!important;bottom:16px!important;right:14px!important;z-index:80!important}.app .content{padding-bottom:110px!important}}
