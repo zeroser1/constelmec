@@ -9,7 +9,14 @@ export function usePlatformAdmin(userId: string | undefined) {
     enabled: !!userId && !!supabase,
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase!.rpc('i_am_platform_admin');
-      if (error) throw new Error(error.message);
+      if (error) {
+        // 42883 = PostgreSQL "function does not exist": migration 004 not yet applied.
+        // Degrade gracefully — existing roles keep working, platform admin is simply unavailable.
+        if (error.code === '42883') return false;
+        // Any other error (42501 permission, auth failure, server error) must surface.
+        // Never silently grant admin access when verification fails.
+        throw new Error(error.message);
+      }
       return data ?? false;
     },
   });
