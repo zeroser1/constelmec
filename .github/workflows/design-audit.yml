@@ -1,0 +1,42 @@
+name: Design Agent - responsive audit
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  design-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: npm run build
+      - name: Start preview
+        run: npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/constelmec-preview.log 2>&1 &
+      - name: Wait for preview
+        run: |
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
+          cat /tmp/constelmec-preview.log
+          exit 1
+      - name: Audit screen layouts and interactions
+        run: npm run audit:design
+      - name: Upload screenshots and findings
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: constelmec-design-audit
+          path: artifacts/design-audit/
+          retention-days: 14
