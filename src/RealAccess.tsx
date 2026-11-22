@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { ArrowRight, Building2, HardHat, LogOut, ShieldAlert } from 'lucide-react';
 import './real-access.css';
 import AdminControl from './AdminControl';
+import PlatformAdminControl from './PlatformAdminControl';
 import { supabaseConfigured } from './lib/supabase';
 import { useAuth, signIn, signUp, signOut } from './hooks/useAuth';
-import { useMembership, useRealGates, useAdminData } from './hooks/useRealData';
+import { useMembership, useRealGates, useAdminData, usePlatformAdmin } from './hooks/useRealData';
 import { SkeletonList } from './components/Skeleton';
 
 export default function RealAccess({ onDemo }: { onDemo: () => void }) {
@@ -16,6 +17,7 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
   const [message, setMessage] = useState('');
   const [adminDemo, setAdminDemo] = useState(false);
 
+  const platformAdminQ = usePlatformAdmin(session?.user.id);
   const membershipQ = useMembership(session?.user.id);
   const membership = membershipQ.data ?? null;
   const gatesQ = useRealGates(membership?.company_id);
@@ -41,17 +43,19 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
 
   const logout = async () => { await signOut(); setMessage(''); };
 
-  const dataError = membershipQ.error || gatesQ.error || adminQ.error;
+  const dataError = platformAdminQ.error || membershipQ.error || gatesQ.error || adminQ.error;
   const errorMessage = message || (dataError instanceof Error ? dataError.message : '');
   const gates = gatesQ.data ?? [];
 
   if (adminDemo) return <><AdminControl demoMode companies={[]} orders={[]} technicians={[]} /><button className="adm-exit-demo" onClick={() => setAdminDemo(false)}>Salir de demo administrador</button></>;
 
+  if (session && platformAdminQ.data === true) return <PlatformAdminControl userId={session.user.id} email={session.user.email ?? ''} onLogout={logout} />;
+
   if (session && membership?.role === 'admin') return <><AdminControl companies={adminQ.data?.companies ?? []} orders={adminQ.data?.orders ?? []} technicians={adminQ.data?.technicians ?? []} /><button className="adm-exit-demo" onClick={logout}>Cerrar sesión</button></>;
 
   if (!supabaseConfigured) return <div className="real-shell"><div className="real-panel"><h1>Conexión pendiente</h1><p>Faltan variables de entorno públicas de Supabase en este despliegue.</p><button onClick={onDemo}>Abrir demostración</button></div></div>;
 
-  if (loading || (session && membershipQ.isLoading)) return <div className="real-shell">Cargando...</div>;
+  if (loading || (session && (platformAdminQ.isLoading || membershipQ.isLoading))) return <div className="real-shell">Cargando...</div>;
 
   return <div className="real-shell"><header className="real-header"><strong>CONSTELMEC</strong><span>MAINTENANCE</span></header>
   {!session ? <main className="real-panel"><div className="real-eyebrow">ACCESO SEGURO</div><h1>{signupMode ? 'Crear cuenta' : 'Bienvenido'}</h1><p>Ingresá con tu cuenta de mantenimiento.</p>

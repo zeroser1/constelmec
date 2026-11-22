@@ -3,6 +3,44 @@ import { supabase } from '../lib/supabase';
 import type { Membership, RealGate } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
 
+export function usePlatformAdmin(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['platform-admin', userId],
+    enabled: !!userId && !!supabase,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase!.rpc('i_am_platform_admin');
+      if (error) throw new Error(error.message);
+      return data ?? false;
+    },
+  });
+}
+
+export function usePlatformAdminData(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['platform-admin-data', userId],
+    enabled: !!userId && !!supabase,
+    queryFn: async (): Promise<{ companies: Company[]; orders: ServiceOrder[]; technicians: Technician[] }> => {
+      const { data: companies, error: compError } = await supabase!.rpc('admin_list_all_companies');
+      if (compError) throw new Error(compError.message);
+      const [orders, technicians] = await Promise.all([
+        supabase!.from('service_orders')
+          .select('id,company_id,service_type,status,scheduled_start,scheduled_end,completed_at,next_service_at,notes,gates(code,description),facilities(name),technician_profiles(first_name,last_name)')
+          .order('scheduled_start', { ascending: true }),
+        supabase!.from('technician_profiles')
+          .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
+          .order('last_name', { ascending: true }),
+      ]);
+      if (orders.error) throw new Error(orders.error.message);
+      if (technicians.error) throw new Error(technicians.error.message);
+      return {
+        companies: unwrap<Company[]>(companies),
+        orders: unwrap<ServiceOrder[]>(orders.data),
+        technicians: unwrap<Technician[]>(technicians.data),
+      };
+    },
+  });
+}
+
 // supabase-js returns embedded to-one relations typed loosely without generated
 // DB types; we cast through unknown at each boundary.
 function unwrap<T>(data: unknown): T {
