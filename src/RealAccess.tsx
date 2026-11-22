@@ -63,7 +63,7 @@ export default function RealAccess({onDemo}:{onDemo:()=>void}) {
   else{const result=await authRequest('token?grant_type=password',{email,password}) as Session & {expires_in:number};const next={...result,expires_at:Math.floor(Date.now()/1000)+result.expires_in};localStorage.setItem(store,JSON.stringify(next));setSession(next);}
  }catch(error){setMessage(error instanceof Error?error.message:'No se pudo ingresar');}finally{setBusy(false)}};
  const logout=()=>{if(session)void authRequest('logout',{}).catch(()=>undefined);localStorage.removeItem(store);setSession(null);setMembership(null);setGates([]);setMessage('');};
- if(adminDemo)return <><AdminControl demoMode companies={[]} orders={[]} technicians={}/><button className="adm-exit-demo" onClick={()=>setAdminDemo(false)}>Salir de demo administrador</button></>;
+ if(adminDemo)return <><AdminControl demoMode companies={[]} orders={[]} technicians={[]}/><button className="adm-exit-demo" onClick={()=>setAdminDemo(false)}>Salir de demo administrador</button></>;
  if(session&&membership?.role==='admin')return <><AdminControl companies={adminCompanies} orders={adminOrders} technicians={adminTechs}/><button className="adm-exit-demo" onClick={logout}>Cerrar sesión</button></>;
  if(!url||!key)return <div className="real-shell"><div className="real-panel"><h1>Conexión pendiente</h1><p>Faltan variables de entorno públicas de Supabase en este despliegue.</p><button onClick={onDemo}>Abrir demostración</button></div></div>;
  if(loading)return <div className="real-shell">Cargando...</div>;
