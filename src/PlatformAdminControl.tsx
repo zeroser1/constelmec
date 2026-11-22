@@ -3,7 +3,7 @@ import AdminControl from './AdminControl';
 import { usePlatformAdminData } from './hooks/useRealData';
 
 export default function PlatformAdminControl({ userId, email, onLogout }: { userId: string; email: string; onLogout: () => void }) {
-  const dataQ = usePlatformAdminData(userId);
+  const dataQ = usePlatformAdminData(userId, true);
 
   if (dataQ.isLoading) return <div className="real-shell"><div className="real-panel"><p>Cargando vista global...</p></div></div>;
   if (dataQ.error) return <div className="real-shell"><div className="real-panel"><p>Error: {dataQ.error instanceof Error ? dataQ.error.message : 'Error desconocido'}</p></div></div>;

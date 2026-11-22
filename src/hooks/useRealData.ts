@@ -10,10 +10,11 @@ export function usePlatformAdmin(userId: string | undefined) {
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase!.rpc('i_am_platform_admin');
       if (error) {
-        // 42883 = PostgreSQL "function does not exist": migration 004 not yet applied.
-        // Degrade gracefully — existing roles keep working, platform admin is simply unavailable.
-        if (error.code === '42883') return false;
-        // Any other error (42501 permission, auth failure, server error) must surface.
+        // PGRST202 = PostgREST schema cache miss ("Could not find the function").
+        // 42883   = PostgreSQL "function does not exist" (stale cache edge case).
+        // Both mean migration 004 is not yet applied — degrade gracefully.
+        if (error.code === 'PGRST202' || error.code === '42883') return false;
+        // All other errors (42501 permission, auth failure, server error) must surface.
         // Never silently grant admin access when verification fails.
         throw new Error(error.message);
       }
@@ -22,10 +23,12 @@ export function usePlatformAdmin(userId: string | undefined) {
   });
 }
 
-export function usePlatformAdminData(userId: string | undefined) {
+// isPlatformAdmin must be explicitly true before this hook fetches — it calls
+// admin_list_all_companies() which raises 42501 for non-admins.
+export function usePlatformAdminData(userId: string | undefined, isPlatformAdmin: boolean) {
   return useQuery({
     queryKey: ['platform-admin-data', userId],
-    enabled: !!userId && !!supabase,
+    enabled: isPlatformAdmin && !!userId && !!supabase,
     queryFn: async (): Promise<{ companies: Company[]; orders: ServiceOrder[]; technicians: Technician[] }> => {
       const { data: companies, error: compError } = await supabase!.rpc('admin_list_all_companies');
       if (compError) throw new Error(compError.message);
