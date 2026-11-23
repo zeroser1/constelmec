@@ -1,6 +1,6 @@
 # Constelmec — Inventario de Datos Personales (Fase 2)
 
-**Versión:** 0.1.0  
+**Versión:** 0.2.0  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 2 — Inventario de datos y flujos  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -117,13 +117,15 @@
 
 ## 2. Flujos de datos por categoría PII
 
-| Categoría | Quién crea | Dónde se almacena | Quién puede leer | Salidas externas |
-|-----------|-----------|-------------------|-----------------|-----------------|
-| **identity** (nombres, email de auth) | Usuario en sign-up; admin en RPCs | `auth.users`, `technician_profiles`, `company_contacts`, `companies` | Supabase Auth (email); admin + plataforma (perfiles/contactos); técnico (propio perfil) | **Ninguna** — sin integraciones externas activas |
-| **contact_info** (email, teléfono, dirección) | Admin vía RPC `admin_create_company_contact`, `admin_update_company`, `admin_create_technician_profile` | `company_contacts`, `technician_profiles`, `companies` | Solo admin + platform_admin | **Ninguna** |
-| **professional** (especialidad, licencia, rol laboral) | Admin vía RPCs | `technician_profiles`, `service_order_technicians` | Admin + platform_admin; técnico (propio perfil) | **Ninguna** |
-| **behavioral** (asignaciones, visitas, observaciones, auditoría) | App vía triggers + RPCs | `audit_events`, `visits`, `service_order_technicians`, `customer_observations`, `finding_events` | Admin + technician (audit_events); todos los miembros (visits, observations) | **Ninguna** |
-| **technical** (tokens QR, paths de Storage) | Sistema via RPC `admin_issue_gate_qr` | `gate_qr_codes` (sólo hash), `report_versions` (storage_path) | Admin (paths); sistema (service_role para validación QR) | **Ninguna** |
+> **Proveedor externo de infraestructura:** Supabase Inc. (BaaS + Auth + Storage) y Vercel Inc. (hosting/edge) procesan todos los datos como encargados de tratamiento. Ambos requieren DPA — ver GAP-DI-05 y verificación de Art. 12 Ley 25.326 en `01-compliance-matrix.md`.
+
+| Categoría PII | Origen (quién crea) | Almacenamiento | Proveedor del dato | Finalidad | Permisos de acceso | Destino externo | Conservación |
+|---------------|--------------------|-----------------|--------------------|-----------|-------------------|----------------|-------------|
+| **identity** — nombres, email de auth | Usuario en sign-up (email); admin en RPCs (nombre/apellido técnico y contacto) | `auth.users`, `technician_profiles`, `company_contacts`, `companies` | Usuario (sign-up); administrador de empresa | Autenticación; identificación del técnico para asignación de órdenes; contacto operacional del cliente | Supabase Auth (email); admin + platform_admin (perfiles/contactos); técnico (propio perfil vía mig 010) | Supabase Inc. (infraestructura) · Vercel Inc. (hosting) — **sin cesión a terceros** | TBD — ver GAP-DI-02 y GAP-05 |
+| **contact_info** — email operacional, teléfono, dirección | Admin vía RPCs: `admin_create_company_contact`, `admin_update_company`, `admin_create_technician_profile` | `company_contacts`, `technician_profiles`, `companies` | Administrador de empresa | Contacto operacional para coordinación de visitas; domicilio fiscal del cliente | Solo admin + platform_admin | Supabase Inc. · Vercel Inc. — **sin cesión** | TBD |
+| **professional** — especialidad, licencia de conducir, habilitación laboral | Admin vía RPCs (`admin_create_technician_profile`) | `technician_profiles`, `service_order_technicians` | Administrador de empresa | Determinar capacidad del técnico para tipos de trabajo; historial de asignaciones laborales | Admin + platform_admin; técnico (propio perfil) | Supabase Inc. · Vercel Inc. — **sin cesión** | TBD — datos laborales sensibles (Art. 7 Ley 25.326) |
+| **behavioral** — asignaciones, visitas, observaciones, auditoría | App vía triggers + RPCs (audit log inmutable) | `audit_events`, `visits`, `service_order_technicians`, `customer_observations`, `finding_events` | Sistema (triggers); usuarios autenticados (observaciones) | Trazabilidad de operaciones; historial de órdenes; rendición de cuentas contractual | Admin + technician (audit_events); todos los miembros de la empresa (visits, observations) | Supabase Inc. · Vercel Inc. — **sin cesión** | TBD — `audit_events` inmutable por diseño; conflicto con derecho de supresión (ver GAP-05) |
+| **technical** — tokens QR, rutas de Storage | Sistema vía RPC `admin_issue_gate_qr`; motor de reportes | `gate_qr_codes` (solo hash sha256, raw token no persiste), `report_versions` (storage_path) | Sistema | Control de acceso físico a portones; gestión de versiones de informes | Admin (paths); service_role (validación QR) | Supabase Inc. (Storage) · Vercel Inc. — **sin cesión** | TBD — QR revocado en re-emisión; storage_path sin bucket policy (ver GAP-01) |
 
 ---
 
