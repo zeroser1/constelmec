@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { Membership, RealGate } from '../lib/types';
+import type { AdminGate, Membership, RealFacility, RealGate } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
 
 export function usePlatformAdmin(userId: string | undefined) {
@@ -164,8 +164,7 @@ export function useAdminCompanyMutations() {
 
 // Admin control-center bundle: companies, service orders and technicians across
 // every company the user administers. User-scoped key, fetched in parallel.
-export function useAdminData(isAdmin: boolean, userId: string | undefined) {
-  return useQuery({
+export function useAdminData(isAdmin: boolean, userId: string | undefined) {  return useQuery({
     queryKey: ['admin-data', userId],
     enabled: isAdmin && !!userId && !!supabase,
     queryFn: async (): Promise<AdminData> => {
@@ -201,4 +200,206 @@ export function useAdminData(isAdmin: boolean, userId: string | undefined) {
       };
     },
   });
+}
+
+// ── Facility hooks (migration 006) ────────────────────────────────────────
+
+export type FacilityFormInput = {
+  name: string;
+  address: string;
+  location_notes: string;
+  contact_name: string;
+  contact_phone: string;
+};
+
+export function useFacilities(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['facilities', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<RealFacility[]> => {
+      const { data, error } = await supabase!
+        .from('facilities')
+        .select('id,company_id,name,address,location_notes,contact_name,contact_phone,active,created_at,updated_at')
+        .eq('company_id', companyId!)
+        .order('name', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<RealFacility[]>(data);
+    },
+  });
+}
+
+export function useFacilityMutations(companyId: string | undefined) {
+  const qc = useQueryClient();
+  const inv = () => qc.invalidateQueries({ queryKey: ['facilities', companyId] });
+
+  const createFacility = useMutation({
+    mutationFn: async (input: FacilityFormInput): Promise<string> => {
+      const { data, error } = await supabase!.rpc('admin_create_facility', {
+        p_company_id:     companyId,
+        p_name:           input.name,
+        p_address:        input.address        || null,
+        p_location_notes: input.location_notes || null,
+        p_contact_name:   input.contact_name   || null,
+        p_contact_phone:  input.contact_phone  || null,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: inv,
+  });
+
+  const updateFacility = useMutation({
+    mutationFn: async (
+      input: FacilityFormInput & { id: string; expected_updated_at?: string | null }
+    ): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_update_facility', {
+        p_facility_id:         input.id,
+        p_company_id:          companyId,
+        p_name:                input.name,
+        p_address:             input.address        || null,
+        p_location_notes:      input.location_notes || null,
+        p_contact_name:        input.contact_name   || null,
+        p_contact_phone:       input.contact_phone  || null,
+        p_expected_updated_at: input.expected_updated_at ?? null,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  const setFacilityActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_set_facility_active', {
+        p_facility_id: id,
+        p_company_id:  companyId,
+        p_active:      active,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  return { createFacility, updateFacility, setFacilityActive };
+}
+
+// ── Gate hooks (migration 006) ─────────────────────────────────────────────
+
+export type GateFormInput = {
+  code: string;
+  description: string;
+  model: string;
+  serial_number: string;
+  location_description: string;
+  operational_state: string;
+};
+
+// Fetches gates for a facility, embedding each gate's QR history (all statuses).
+// The active QR is the first entry with status === 'active'.
+export function useAdminGates(facilityId: string | undefined, companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['admin-gates', facilityId],
+    enabled: !!facilityId && !!companyId && !!supabase,
+    queryFn: async (): Promise<AdminGate[]> => {
+      const { data, error } = await supabase!
+        .from('gates')
+        .select(
+          'id,company_id,facility_id,code,description,model,serial_number,' +
+          'location_description,operational_state,active,created_at,updated_at,' +
+          'gate_qr_codes(id,status,issued_at,revoked_at)'
+        )
+        .eq('facility_id', facilityId!)
+        .eq('company_id', companyId!)
+        .order('code', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<AdminGate[]>(data);
+    },
+  });
+}
+
+export function useGateMutations(companyId: string | undefined, facilityId: string | undefined) {
+  const qc = useQueryClient();
+  const inv = () => qc.invalidateQueries({ queryKey: ['admin-gates', facilityId] });
+
+  const createGate = useMutation({
+    mutationFn: async (input: GateFormInput): Promise<string> => {
+      const { data, error } = await supabase!.rpc('admin_create_gate', {
+        p_company_id:           companyId,
+        p_facility_id:          facilityId,
+        p_code:                 input.code,
+        p_description:          input.description,
+        p_model:                input.model               || null,
+        p_serial_number:        input.serial_number        || null,
+        p_location_description: input.location_description || null,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: inv,
+  });
+
+  const updateGate = useMutation({
+    mutationFn: async (
+      input: GateFormInput & { id: string; expected_updated_at?: string | null }
+    ): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_update_gate', {
+        p_gate_id:              input.id,
+        p_company_id:           companyId,
+        p_description:          input.description,
+        p_model:                input.model               || null,
+        p_serial_number:        input.serial_number        || null,
+        p_location_description: input.location_description || null,
+        p_operational_state:    input.operational_state    || null,
+        p_expected_updated_at:  input.expected_updated_at ?? null,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  const setGateActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_set_gate_active', {
+        p_gate_id:    id,
+        p_company_id: companyId,
+        p_active:     active,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  return { createGate, updateGate, setGateActive };
+}
+
+// ── QR mutation hooks (migration 006) ─────────────────────────────────────
+
+// Invalidates the gates query so QR state refreshes without a separate QR query.
+export function useQRMutations(companyId: string | undefined, facilityId: string | undefined) {
+  const qc = useQueryClient();
+  const inv = () => qc.invalidateQueries({ queryKey: ['admin-gates', facilityId] });
+
+  const issueQR = useMutation({
+    mutationFn: async (gateId: string): Promise<string> => {
+      const { data, error } = await supabase!.rpc('admin_issue_gate_qr', {
+        p_gate_id:    gateId,
+        p_company_id: companyId,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: inv,
+  });
+
+  const revokeQR = useMutation({
+    mutationFn: async (qrId: string): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_revoke_gate_qr', {
+        p_qr_id:      qrId,
+        p_company_id: companyId,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  return { issueQR, revokeQR };
 }

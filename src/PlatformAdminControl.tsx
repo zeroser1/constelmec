@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Building2, CalendarDays, LogOut, Shield } from 'lucide-react';
+import { Building2, CalendarDays, LogOut, MapPin, Shield } from 'lucide-react';
 import AdminControl from './AdminControl';
 import CompanyManager from './CompanyManager';
+import FacilityManager from './FacilityManager';
 import { usePlatformAdminData } from './hooks/useRealData';
 
-type Section = 'companies' | 'operations';
+type Section = 'companies' | 'operations' | 'facilities';
 
 export default function PlatformAdminControl({
   userId,
@@ -61,6 +62,12 @@ export default function PlatformAdminControl({
             active={section === 'operations'}
             onClick={() => setSection('operations')}
           />
+          <NavTab
+            label="Instalaciones"
+            icon={<MapPin size={15} />}
+            active={section === 'facilities'}
+            onClick={() => setSection('facilities')}
+          />
         </div>
 
         {/* Logout */}
@@ -80,6 +87,8 @@ export default function PlatformAdminControl({
             isLoading={dataQ.isLoading}
             error={dataQ.error}
           />
+        ) : section === 'facilities' ? (
+          <FacilityManager companies={companies} />
         ) : (
           <AdminControl
             companies={companies}
