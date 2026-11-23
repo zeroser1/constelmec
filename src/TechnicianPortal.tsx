@@ -1,3 +1,4 @@
+import TechnicianInspection from './TechnicianInspection';
 import {useState} from 'react';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
@@ -34,6 +35,7 @@ function dayKey(iso: string) {
 }
 
 function OrderCard({item}: {item: TechAssignedOrder}) {
+  const [inspect,setInspect]=useState(false);
   const o = item.service_orders;
   if (!o) return null;
   return (
@@ -51,6 +53,8 @@ function OrderCard({item}: {item: TechAssignedOrder}) {
         {o.gates && <span><DoorOpen size={13}/>{o.gates.code} · {o.gates.description}</span>}
       </div>
       {o.notes && <p className="tech-order-notes">{o.notes}</p>}
+      {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
+      {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onDone={()=>{setInspect(false);window.location.reload()}}/>}
     </div>
   );
 }
