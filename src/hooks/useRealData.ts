@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { AdminGate, CompanyContact, ContactCategory, Membership, RealFacility, RealGate } from '../lib/types';
+import type { AdminGate, CompanyContact, ContactCategory, Membership, OrderTechnician, OrderTechnicianRole, RealFacility, RealGate } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
 
 export function usePlatformAdmin(userId: string | undefined) {
@@ -598,4 +598,84 @@ export function useTechnicianMutations() {
   });
 
   return { setCompanyActive, setFacilityActive };
+}
+
+// ── Order-technician hooks (migration 009) ────────────────────────────────
+
+export function useOrderTechnicians(
+  companyId: string | undefined,
+  orderId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['order-technicians', companyId, orderId],
+    enabled: !!companyId && !!orderId && !!supabase,
+    queryFn: async (): Promise<OrderTechnician[]> => {
+      const { data, error } = await supabase!
+        .from('service_order_technicians')
+        .select(
+          'id,service_order_id,technician_id,company_id,role,assigned_at,active,' +
+          'technician_profiles(first_name,last_name,specialty)',
+        )
+        .eq('service_order_id', orderId!)
+        .eq('company_id', companyId!)
+        .eq('active', true)
+        .order('assigned_at', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<OrderTechnician[]>(data);
+    },
+  });
+}
+
+export function useOrderTechnicianMutations() {
+  const qc = useQueryClient();
+
+  const assignTechnician = useMutation({
+    mutationFn: async ({
+      companyId,
+      orderId,
+      technicianId,
+      role,
+    }: {
+      companyId: string;
+      orderId: string;
+      technicianId: string;
+      role: OrderTechnicianRole;
+    }): Promise<string> => {
+      const { data, error } = await supabase!.rpc('admin_assign_order_technician', {
+        p_company_id:    companyId,
+        p_order_id:      orderId,
+        p_technician_id: technicianId,
+        p_role:          role,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['order-technicians', variables.companyId, variables.orderId] });
+    },
+  });
+
+  const removeTechnician = useMutation({
+    mutationFn: async ({
+      companyId,
+      orderId,
+      technicianId,
+    }: {
+      companyId: string;
+      orderId: string;
+      technicianId: string;
+    }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_remove_order_technician', {
+        p_company_id:    companyId,
+        p_order_id:      orderId,
+        p_technician_id: technicianId,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['order-technicians', variables.companyId, variables.orderId] });
+    },
+  });
+
+  return { assignTechnician, removeTechnician };
 }

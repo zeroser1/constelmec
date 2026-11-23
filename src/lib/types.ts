@@ -80,7 +80,24 @@ export type AdminGate = {
   gate_qr_codes?: GateQR[];
 };
 
-// ── Company contacts types (migration 007) ────────────────────────────────
+// ── Service-order technician assignment types (migration 009) ─────────────
+
+export type OrderTechnicianRole = 'lead' | 'support';
+
+export type OrderTechnician = {
+  id: string;
+  service_order_id: string;
+  technician_id: string;
+  company_id: string;
+  role: OrderTechnicianRole;
+  assigned_at: string;
+  active: boolean;
+  technician_profiles: {
+    first_name: string;
+    last_name: string;
+    specialty: string | null;
+  } | null;
+};
 
 export type ContactCategory = 'commercial' | 'administrative' | 'technical' | 'emergency' | 'other';
 
