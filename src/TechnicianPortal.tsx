@@ -148,7 +148,7 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
       <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
       {!selected && pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
-      {selected && <TechnicianInspection key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);onNavigate()}}/>}
+      {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);onNavigate()}}/>}
       {!selected && gates.map(g => (
         <div key={g.id} className="tech-gate-row tech-gate-row--action" style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'center'}}>
           <DoorOpen size={18}/>
