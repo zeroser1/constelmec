@@ -1,4 +1,9 @@
 /* AppShell — shared responsive sidebar shell */
+/* Brand color tokens extracted from Constelmec logo */
+.appshell-root {
+  --brand-red:  #c0303f;
+  --brand-blue: #8090c0;
+}
 .appshell-root {
   display: flex;
   height: 100dvh;
@@ -26,7 +31,7 @@
   align-items: center;
   gap: 10px;
   padding: 16px 14px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(192, 48, 63, 0.25);
   flex-shrink: 0;
 }
 .appshell-brand-logo {
@@ -35,6 +40,9 @@
   object-fit: contain;
   flex-shrink: 0;
   border-radius: 4px;
+  /* Transparent PNG shows well on dark navy; ring adds depth */
+  outline: 1px solid rgba(192, 48, 63, 0.3);
+  outline-offset: 2px;
 }
 .appshell-brand-text {
   overflow: hidden;
@@ -84,8 +92,9 @@
 }
 .appshell-nav-btn:hover { background: rgba(255,255,255,0.07); color: #cdd6e4; }
 .appshell-nav-btn.active {
-  background: rgba(255,255,255,0.12);
-  border-color: rgba(255,255,255,0.18);
+  background: rgba(192, 48, 63, 0.14);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--brand-red);
   color: #fff;
   font-weight: 700;
 }
@@ -141,7 +150,7 @@
   white-space: nowrap;
   text-align: left;
 }
-.appshell-logout-btn:hover { background: rgba(255,255,255,0.07); color: #cdd6e4; }
+.appshell-logout-btn:hover { background: rgba(192, 48, 63, 0.14); color: #f0b8be; }
 .appshell-logout-label { transition: opacity 0.15s; }
 .appshell-sidebar.collapsed .appshell-logout-label { opacity: 0; width: 0; overflow: hidden; }
 
