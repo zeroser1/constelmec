@@ -185,7 +185,8 @@ create or replace function public.admin_assign_order_technician(
 ) returns uuid language plpgsql security definer set search_path=''
 as $$
 declare
-  v_id uuid;
+  v_id           uuid;
+  v_order_status text;
 begin
   if not (app_private.is_platform_admin() or
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
@@ -203,11 +204,16 @@ begin
   -- Lock the service_orders row to serialize concurrent lead-assign races.
   -- admin_set_technician_company never locks service_orders, so lock order
   -- (technician_company_assignments → service_orders) cannot deadlock.
-  perform id from public.service_orders
+  select status into v_order_status from public.service_orders
   where id = p_order_id and company_id = p_company_id
   for update;
   if not found then
     raise exception 'service order not found in this company' using errcode = 'P0002';
+  end if;
+  -- Completed and cancelled orders are closed — their assignment history must be preserved.
+  if v_order_status in ('completed', 'cancelled') then
+    raise exception 'cannot assign a technician to a % order', v_order_status
+      using errcode = 'P0001';
   end if;
   if not exists (
     select 1 from public.technician_profiles
@@ -275,10 +281,28 @@ create or replace function public.admin_remove_order_technician(
   p_technician_id uuid
 ) returns void language plpgsql security definer set search_path=''
 as $$
+declare
+  v_order_status text;
 begin
   if not (app_private.is_platform_admin() or
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
     raise exception 'permission denied' using errcode = '42501';
+  end if;
+  -- Lock the service_orders row to prevent a concurrent status transition from bypassing
+  -- the completed/cancelled guard between the check and the UPDATE below.
+  -- admin_remove_order_technician locks only service_orders (no tca lock), so it cannot
+  -- deadlock with admin_assign_order_technician (tca → service_orders) or
+  -- admin_set_technician_company (tca only).
+  select status into v_order_status from public.service_orders
+  where id = p_order_id and company_id = p_company_id
+  for update;
+  if not found then
+    raise exception 'service order not found in this company' using errcode = 'P0002';
+  end if;
+  -- Completed and cancelled orders are closed — their assignment history must be preserved.
+  if v_order_status in ('completed', 'cancelled') then
+    raise exception 'cannot remove a technician from a % order', v_order_status
+      using errcode = 'P0001';
   end if;
   update public.service_order_technicians
     set active     = false,

@@ -592,6 +592,113 @@ $$;
 RESET ROLE;
 
 -- ══════════════════════════════════════════════════════════════════
+-- GROUP 5: Status guards — no assign/remove on completed or cancelled
+-- (product decision from ChatGPT review, 2026-11-23)
+-- ══════════════════════════════════════════════════════════════════
+
+-- Setup: create a cancelled order as superuser.
+DO $$
+DECLARE v_co_a uuid; v_fac uuid; v_gate uuid; v_ord_cancelled uuid;
+BEGIN
+  SELECT co_a, fac, gate INTO v_co_a, v_fac, v_gate FROM _t009 LIMIT 1;
+  INSERT INTO public.service_orders (company_id, facility_id, gate_id, service_type, status,
+                                     scheduled_start, scheduled_end)
+  VALUES (v_co_a, v_fac, v_gate, 'corrective', 'cancelled',
+          now() - interval '3 days', now() - interval '3 days' + interval '2 hours')
+  RETURNING id INTO v_ord_cancelled;
+  CREATE TEMP TABLE _t009_cancelled (id uuid) ON COMMIT DROP;
+  INSERT INTO _t009_cancelled VALUES (v_ord_cancelled);
+END;
+$$;
+SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000099","aud":"authenticated"}';
+SET LOCAL "request.jwt.aud" = 'authenticated';
+SET LOCAL ROLE authenticated;
+
+-- TEST 5a: Cannot assign to a completed order → P0001.
+-- tech2 is enabled for co_a (from test 4c setup); ord_done is completed.
+DO $$
+DECLARE v_co_a uuid; v_ord_done uuid; v_tech2_id uuid;
+BEGIN
+  SELECT co_a, ord_done INTO v_co_a, v_ord_done FROM _t009 LIMIT 1;
+  SELECT id INTO v_tech2_id FROM _t009_tech2 LIMIT 1;
+  PERFORM public.admin_assign_order_technician(
+    v_co_a, v_ord_done, v_tech2_id, 'support'::public.order_technician_role);
+  RAISE EXCEPTION 'TEST 5a FAIL: should have raised P0001 (completed order)';
+EXCEPTION
+  WHEN SQLSTATE 'P0001' THEN
+    RAISE NOTICE 'TEST 5a PASS: assign to completed order rejected (P0001)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 5a FAIL: unexpected % — %', SQLSTATE, SQLERRM;
+END;
+$$;
+
+-- TEST 5b: Cannot assign to a cancelled order → P0001.
+DO $$
+DECLARE v_co_a uuid; v_tech_a uuid; v_ord_cancelled uuid;
+BEGIN
+  SELECT co_a, tech_a INTO v_co_a, v_tech_a FROM _t009 LIMIT 1;
+  SELECT id INTO v_ord_cancelled FROM _t009_cancelled LIMIT 1;
+  PERFORM public.admin_assign_order_technician(
+    v_co_a, v_ord_cancelled, v_tech_a, 'lead'::public.order_technician_role);
+  RAISE EXCEPTION 'TEST 5b FAIL: should have raised P0001 (cancelled order)';
+EXCEPTION
+  WHEN SQLSTATE 'P0001' THEN
+    RAISE NOTICE 'TEST 5b PASS: assign to cancelled order rejected (P0001)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 5b FAIL: unexpected % — %', SQLSTATE, SQLERRM;
+END;
+$$;
+
+-- TEST 5c: Cannot remove from a completed order → P0001.
+-- tech_a is active in ord_done (assigned in test 3d, never removed since).
+DO $$
+DECLARE v_co_a uuid; v_tech_a uuid; v_ord_done uuid;
+BEGIN
+  SELECT co_a, tech_a, ord_done INTO v_co_a, v_tech_a, v_ord_done FROM _t009 LIMIT 1;
+  PERFORM public.admin_remove_order_technician(v_co_a, v_ord_done, v_tech_a);
+  RAISE EXCEPTION 'TEST 5c FAIL: should have raised P0001 (completed order)';
+EXCEPTION
+  WHEN SQLSTATE 'P0001' THEN
+    RAISE NOTICE 'TEST 5c PASS: remove from completed order rejected (P0001)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 5c FAIL: unexpected % — %', SQLSTATE, SQLERRM;
+END;
+$$;
+
+-- TEST 5d: Cannot remove from a cancelled order → P0001.
+-- Setup: insert tech_a into the cancelled order as superuser (bypassing RPC guard).
+RESET ROLE;
+DO $$
+DECLARE v_co_a uuid; v_tech_a uuid; v_ord_cancelled uuid;
+BEGIN
+  SELECT co_a, tech_a INTO v_co_a, v_tech_a FROM _t009 LIMIT 1;
+  SELECT id INTO v_ord_cancelled FROM _t009_cancelled LIMIT 1;
+  INSERT INTO public.service_order_technicians (service_order_id, technician_id, company_id, role, active)
+  VALUES (v_ord_cancelled, v_tech_a, v_co_a, 'lead', true);
+END;
+$$;
+SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000099","aud":"authenticated"}';
+SET LOCAL "request.jwt.aud" = 'authenticated';
+SET LOCAL ROLE authenticated;
+
+DO $$
+DECLARE v_co_a uuid; v_tech_a uuid; v_ord_cancelled uuid;
+BEGIN
+  SELECT co_a, tech_a INTO v_co_a, v_tech_a FROM _t009 LIMIT 1;
+  SELECT id INTO v_ord_cancelled FROM _t009_cancelled LIMIT 1;
+  PERFORM public.admin_remove_order_technician(v_co_a, v_ord_cancelled, v_tech_a);
+  RAISE EXCEPTION 'TEST 5d FAIL: should have raised P0001 (cancelled order)';
+EXCEPTION
+  WHEN SQLSTATE 'P0001' THEN
+    RAISE NOTICE 'TEST 5d PASS: remove from cancelled order rejected (P0001)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 5d FAIL: unexpected % — %', SQLSTATE, SQLERRM;
+END;
+$$;
+
+RESET ROLE;
+
+-- ══════════════════════════════════════════════════════════════════
 -- ROLLBACK: all test data discarded — no persistent changes
 -- ══════════════════════════════════════════════════════════════════
 ROLLBACK;
