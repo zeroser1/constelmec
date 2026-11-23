@@ -16,3 +16,16 @@
 .real-outline{background:#fff!important;color:#19304c!important;border-color:#b8c6d7!important}
 .real-primary{background:#cc071d!important;color:#fff!important}
 .real-header{background:linear-gradient(115deg,#10263e,#1a344f)!important;color:#fff!important}
+
+/* Login branding: reuse the repository logo and shared product typography. */
+.real-shell{font-family:'DM Sans',system-ui,sans-serif!important}
+.real-shell button,.real-shell input{font-family:inherit}
+.real-header{min-height:104px;display:flex;align-items:center;justify-content:center}
+.real-brand{display:flex;align-items:center;gap:14px;max-width:100%;}
+.real-brand-logo{display:block;width:54px;height:54px;object-fit:contain;flex-shrink:0}
+.real-brand-wordmark{display:flex;flex-direction:column;gap:3px}
+.real-header .real-brand-wordmark strong{font-style:normal;font-family:'Manrope','DM Sans',sans-serif;font-size:clamp(19px,4.8vw,26px);font-weight:800;letter-spacing:.025em;line-height:1.15}
+.real-header .real-brand-wordmark strong::before{content:none;display:none}
+.real-header .real-brand-wordmark span{display:block;font-size:10px;letter-spacing:.2em;color:#b5c6d9;font-weight:700}
+.real-panel input:focus-visible,.real-panel button:focus-visible{outline:2px solid #294d7c;outline-offset:2px}
+@media(max-width:520px){.real-header{min-height:94px}.real-brand-logo{width:46px;height:46px}}
