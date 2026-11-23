@@ -1,6 +1,7 @@
 import {useMemo,useState} from 'react';import AppShell from './AppShell';
-import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,Users,Wrench} from 'lucide-react';
-import {useOrderTechnicians,useOrderTechnicianMutations,useTechnicianProfiles} from './hooks/useRealData';
+import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,Plus,Users,Wrench,X} from 'lucide-react';
+import {useOrderTechnicians,useOrderTechnicianMutations,useTechnicianProfiles,useFacilities,useAdminGates,useCreateServiceOrder} from './hooks/useRealData';
+import type {CreateServiceOrderResult} from './hooks/useRealData';
 import type {OrderTechnicianRole} from './lib/types';
 import './admin.css';
 import ContactManager from './ContactManager';
@@ -68,8 +69,66 @@ function OrderTechPanel({order,demoMode,allTechs}:{order:ServiceOrder;demoMode:b
     </div>}
   </div>;
 }
+function NewOrderModal({companies,technicians,defaultCompanyId,defaultDate,onClose}:{companies:Company[];technicians:Technician[];defaultCompanyId:string;defaultDate:string;onClose:()=>void}){
+  const {createOrder}=useCreateServiceOrder();
+  const [cId,setCId]=useState(defaultCompanyId!=='all'?defaultCompanyId:(companies[0]?.id??''));
+  const [facId,setFacId]=useState('');const [gateId,setGateId]=useState('');const [svcType,setSvcType]=useState('');
+  const [startDt,setStartDt]=useState(defaultDate+'T09:00');const [endDt,setEndDt]=useState(defaultDate+'T11:00');
+  const [techSel,setTechSel]=useState<Record<string,OrderTechnicianRole>>({});
+  const [result,setResult]=useState<CreateServiceOrderResult|null>(null);const [err,setErr]=useState('');
+  const facilitiesQ=useFacilities(cId||undefined);const gatesQ=useAdminGates(facId||undefined,cId||undefined);
+  const activeFacs=(facilitiesQ.data??[]).filter(f=>f.active);const activeGates=(gatesQ.data??[]).filter(g=>g.active);
+  const availTechs=technicians.filter(t=>t.company_id===cId&&t.active);
+  const changeCo=(id:string)=>{setCId(id);setFacId('');setGateId('');setTechSel({});};
+  const changeFac=(id:string)=>{setFacId(id);setGateId('');};
+  const toggleTech=(id:string)=>setTechSel(p=>{if(id in p){const{[id]:_,...r}=p;return r;}return{...p,[id]:'support' as OrderTechnicianRole};});
+  const canSub=!createOrder.isPending&&!!cId&&!!facId&&!!gateId&&!!svcType&&!!startDt&&!!endDt;
+  const submit=async()=>{setErr('');setResult(null);const techs=Object.entries(techSel).map(([technicianId,role])=>({technicianId,role}));try{const r=await createOrder.mutateAsync({companyId:cId,facilityId:facId,gateId,serviceType:svcType,scheduledStart:new Date(startDt).toISOString(),scheduledEnd:new Date(endDt).toISOString(),technicians:techs});setResult(r);}catch(e:unknown){setErr(e instanceof Error?e.message:'Error al crear la orden');}};
+  const bd={position:'fixed',inset:0,background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:16} as const;
+  const box={background:'white',borderRadius:14,width:'100%',maxWidth:520,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.3)',fontFamily:'Arial,Helvetica,sans-serif',padding:'24px 24px 28px'} as const;
+  const sel={width:'100%',padding:'8px 10px',border:'1px solid #d1dbe5',borderRadius:8,fontSize:14,marginTop:4,display:'block'} as const;
+  const lbl={display:'block',fontSize:13,fontWeight:600,color:'#10263e',marginBottom:12} as const;
+  if(result)return(
+    <div style={bd} onClick={onClose}><div style={box} onClick={e=>e.stopPropagation()}>
+      <h2 style={{margin:'0 0 16px',fontSize:19,fontWeight:800,color:'#10263e'}}>Orden creada</h2>
+      <p style={{fontSize:13,color:'#4a5e6d',wordBreak:'break-all',marginBottom:6}}>ID: {result.orderId}</p>
+      <p style={{fontSize:14,color:result.scheduled?'#1a7a3f':'#b05000',margin:'0 0 12px'}}>{result.scheduled?'✓ Programada con técnicos asignados.':result.assignedTechs.length>0?'Creada, pero no se pudo programar (ver errores abajo).':'Creada sin técnicos (sin asignar).'}</p>
+      {result.failedTechs.length>0&&<div style={{background:'#fff3cd',border:'1px solid #f0c040',borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13}}><strong>Asignaciones fallidas:</strong><ul style={{margin:'6px 0 0',paddingLeft:18}}>{result.failedTechs.map(f=><li key={f.technicianId}>{f.technicianId==='__schedule__'?'Cambio de estado':f.technicianId.slice(0,8)+'…'}: {f.error}</li>)}</ul></div>}
+      <button onClick={onClose} style={{padding:'9px 20px',background:'#1a5eb8',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>Cerrar</button>
+    </div></div>
+  );
+  return(
+    <div style={bd} onClick={onClose}><div style={box} onClick={e=>e.stopPropagation()}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+        <h2 style={{margin:0,fontSize:19,fontWeight:800,color:'#10263e'}}>Nueva orden de servicio</h2>
+        <button onClick={onClose} style={{background:'none',border:0,cursor:'pointer',color:'#8295a8',padding:4}}><X size={20}/></button>
+      </div>
+      <label style={lbl}>Empresa<select style={sel} value={cId} onChange={e=>changeCo(e.target.value)}><option value="">Seleccionar…</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <label style={lbl}>Instalación<select style={sel} value={facId} onChange={e=>changeFac(e.target.value)} disabled={!cId||facilitiesQ.isLoading}><option value="">Seleccionar…</option>{activeFacs.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+      <label style={lbl}>Portón<select style={sel} value={gateId} onChange={e=>setGateId(e.target.value)} disabled={!facId||gatesQ.isLoading}><option value="">Seleccionar…</option>{activeGates.map(g=><option key={g.id} value={g.id}>{g.code} — {g.description}</option>)}</select></label>
+      <label style={lbl}>Tipo de servicio<select style={sel} value={svcType} onChange={e=>setSvcType(e.target.value)}><option value="">Seleccionar…</option><option value="preventive">Preventivo</option><option value="corrective">Correctivo</option><option value="installation">Instalación</option><option value="emergency">Emergencia</option></select></label>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <label style={lbl}>Inicio<input type="datetime-local" style={sel} value={startDt} onChange={e=>setStartDt(e.target.value)}/></label>
+        <label style={lbl}>Fin<input type="datetime-local" style={sel} value={endDt} onChange={e=>setEndDt(e.target.value)}/></label>
+      </div>
+      {availTechs.length>0&&<fieldset style={{border:'1px solid #d1dbe5',borderRadius:8,padding:'10px 14px',marginBottom:12}}>
+        <legend style={{fontSize:13,fontWeight:600,color:'#4a5e6d',padding:'0 6px'}}>Técnicos (opcional)</legend>
+        {availTechs.map(t=><div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
+          <input type="checkbox" id={'tech-'+t.id} checked={t.id in techSel} onChange={()=>toggleTech(t.id)} style={{cursor:'pointer'}}/>
+          <label htmlFor={'tech-'+t.id} style={{fontSize:14,color:'#10263e',cursor:'pointer',flex:1}}>{t.first_name} {t.last_name}{t.specialty?<span style={{fontSize:12,color:'#8295a8',marginLeft:6}}>({t.specialty})</span>:null}</label>
+          {t.id in techSel&&<select value={techSel[t.id]} onChange={e=>setTechSel(p=>({...p,[t.id]:e.target.value as OrderTechnicianRole}))} style={{padding:'4px 8px',border:'1px solid #d1dbe5',borderRadius:6,fontSize:13}}><option value="support">Apoyo</option><option value="lead">Principal</option></select>}
+        </div>)}
+      </fieldset>}
+      {err&&<p style={{color:'#c0392b',fontSize:13,margin:'0 0 12px'}}>{err}</p>}
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+        <button onClick={onClose} style={{padding:'9px 20px',background:'white',border:'1px solid #d1dbe5',borderRadius:8,cursor:'pointer',fontSize:14,color:'#4a5e6d'}}>Cancelar</button>
+        <button onClick={submit} disabled={!canSub} style={{padding:'9px 20px',background:canSub?'#1a5eb8':'#8295a8',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:canSub?'pointer':'not-allowed',fontSize:14}}>{createOrder.isPending?'Creando…':'Crear orden'}</button>
+      </div>
+    </div></div>
+  );
+}
 export default function AdminControl({companies,orders,technicians=[],demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
- const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);
+ const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
  const allCompanies=demoMode?sampleCompanies:companies;const allOrders=demoMode?demo.orders:orders;
  const filtered=useMemo(()=>allOrders.filter(o=>company==='all'||o.company_id===company),[allOrders,company]);
 
@@ -83,8 +142,8 @@ export default function AdminControl({companies,orders,technicians=[],demoMode=f
  const orderCard=(o:ServiceOrder)=>{const exp=expandedOrder===o.id;return <article className={'adm-order'+(exp?' adm-order--expanded':'')} key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><button className="adm-order-tech-toggle" onClick={()=>setExpandedOrder(exp?null:o.id)}><HardHat size={14}/>{exp?'Ocultar técnicos':(o.technician_profiles?o.technician_profiles.first_name+' '+o.technician_profiles.last_name:'Sin técnico · Ver asignaciones')}<ChevronDown size={12} style={{transform:exp?'rotate(180deg)':'none'}}/></button>{exp&&<OrderTechPanel order={o} demoMode={demoMode} allTechs={technicians}/>}</article>;};
  const useShell=!demoMode&&!!onLogout;const shellNavItems=[{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}];const _shell=<div className={"adm-shell"+(useShell||embedded?" adm-shell--embedded":"")}><header className="adm-header"><div className="adm-brand"><span className="adm-brand-mark" aria-hidden="true"/>CONSTELMEC</div><span className="adm-subtitle">CENTRO DE CONTROL</span></header><div className="adm-layout"><nav className="adm-nav" aria-label="Administración">{[{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}].map(({key,label,icon:Icon})=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key as typeof section)}><Icon size={19}/>{label}</button>)}</nav><main className="adm-main"><div className="adm-heading"><div><small>OPERACIONES / {section==='overview'?'RESUMEN':section==='calendar'?'CALENDARIO':section==='contacts'?'CONTACTOS':'TÉCNICOS'}</small><h1>{section==='overview'?'Centro de control':section==='calendar'?'Agenda de servicios':section==='contacts'?'Contactos':'Equipo técnico'}</h1></div>{demoMode&&<span className="adm-demo">DATOS DE DEMOSTRACIÓN</span>}</div>{(section==='overview'||section==='calendar')&&<label className="adm-company"><Building2 size={18}/><span>Empresa</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="all">Todas las empresas</option>{allCompanies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
  {section==='overview'&&<><div className="adm-metrics">{cards.map(({label,value,icon:Icon},i)=><div className="adm-metric" key={label}><div><span>{label}</span><Icon size={19} color={i===3?'#d3273d':'#8193a6'}/></div><strong>{value}</strong></div>)}</div><div className="adm-columns"><section className="adm-card"><div className="adm-card-title"><h2>Servicios de hoy</h2><button onClick={()=>{setSection('calendar');setSelected(today)}}>Ver agenda</button></div>{todayOrders.length?todayOrders.map(orderCard):<p className="adm-empty">No hay servicios programados para hoy.</p>}</section><section className="adm-card"><div className="adm-card-title"><h2>Próximos servicios</h2><span>{upcoming.length} pendientes</span></div>{upcoming.length?upcoming.slice(0,5).map(orderCard):<p className="adm-empty">No hay próximos servicios pendientes.</p>}</section></div>{overdue.length>0&&<section className="adm-card adm-warning"><h2><AlertTriangle size={19}/> Servicios vencidos</h2>{overdue.map(orderCard)}</section>}</>}
- {section==='calendar'&&<div className="adm-columns"><section className="adm-card"><div className="adm-calendar-title"><button aria-label="Mes anterior" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft/></button><h2>{month.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</h2><button aria-label="Mes siguiente" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight/></button></div><div className="adm-calendar">{['L','M','M','J','V','S','D'].map((d,i)=><span className="adm-weekday" key={i}>{d}</span>)}{Array.from({length:start},(_,i)=><span key={'pad'+i}/>)}{Array.from({length:daysInMonth},(_,i)=>{const day=dayKey(new Date(month.getFullYear(),month.getMonth(),i+1));const has=filtered.some(o=>dayKey(new Date(o.scheduled_start))===day);return <button key={day} className={[selected===day?'selected':'',day===today?'today':''].join(' ')} onClick={()=>setSelected(day)} aria-label={day}>{i+1}{has&&<i/>}</button>})}</div></section><section className="adm-card"><h2>{new Date(selected+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</h2>{chosen.length?chosen.map(orderCard):<p className="adm-empty">No hay servicios para esta fecha.</p>}</section></div>}
+ {section==='calendar'&&<div className="adm-columns"><section className="adm-card"><div className="adm-calendar-title"><button aria-label="Mes anterior" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft/></button><h2>{month.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</h2><button aria-label="Mes siguiente" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight/></button></div><div className="adm-calendar">{['L','M','M','J','V','S','D'].map((d,i)=><span className="adm-weekday" key={i}>{d}</span>)}{Array.from({length:start},(_,i)=><span key={'pad'+i}/>)}{Array.from({length:daysInMonth},(_,i)=>{const day=dayKey(new Date(month.getFullYear(),month.getMonth(),i+1));const has=filtered.some(o=>dayKey(new Date(o.scheduled_start))===day);return <button key={day} className={[selected===day?'selected':'',day===today?'today':''].join(' ')} onClick={()=>setSelected(day)} aria-label={day}>{i+1}{has&&<i/>}</button>})}</div></section><section className="adm-card"><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,flexWrap:'wrap',gap:8}}><h2 style={{margin:0}}>{new Date(selected+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</h2>{!demoMode&&<button onClick={()=>setNewOrderOpen(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'#1a5eb8',color:'white',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}><Plus size={14}/>Nueva orden</button>}</div>{chosen.length?chosen.map(orderCard):<p className="adm-empty">No hay servicios para esta fecha.</p>}</section></div>}
  {section==='contacts'&&<ContactManager companies={allCompanies}/>}
  {section==='technicians'&&<TechnicianManager companies={allCompanies}/>}
- <p className="adm-footnote">{demoMode?'Información ficticia: las acciones no modifican Supabase.':'Datos reales de Supabase · vista de consulta. La programación y edición se habilitarán cuando esté completo el módulo de permisos de escritura.'}</p></main></div></div>;return useShell?<AppShell navItems={shellNavItems} activeSection={section} onNavigate={k=>setSection(k as typeof section)} brand="Centro de Control" userEmail={email??''} onLogout={onLogout!}>{_shell}</AppShell>:_shell;
+ {newOrderOpen&&!demoMode&&<NewOrderModal companies={allCompanies} technicians={technicians} defaultCompanyId={company} defaultDate={selected} onClose={()=>setNewOrderOpen(false)}/>}<p className="adm-footnote">{demoMode?'Información ficticia: las acciones no modifican Supabase.':'Datos reales de Supabase.'}</p></main></div></div>;return useShell?<AppShell navItems={shellNavItems} activeSection={section} onNavigate={k=>setSection(k as typeof section)} brand="Centro de Control" userEmail={email??''} onLogout={onLogout!}>{_shell}</AppShell>:_shell;
 }
