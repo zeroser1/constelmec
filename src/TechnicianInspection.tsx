@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {supabase} from './lib/supabase';
 
 const checks = [
@@ -16,6 +16,9 @@ export default function TechnicianInspection({orderId,gateCode,onDone}:{orderId:
  const [message,setMessage]=useState('');
  const [finished,setFinished]=useState(false);
  const [savedNotes,setSavedNotes]=useState<Record<string,string>>({});
+ const [loading,setLoading]=useState(true);
+ useEffect(()=>{let alive=true;void (async()=>{const {data,error}=await supabase!.rpc('tech_get_pilot_progress',{p_order_id:orderId});if(!alive)return;if(error){setError(error.message)}else if(data?.visit_id){setVisitId(data.visit_id);const r:Record<string,Result>={};const n:Record<string,string>={};for(const c of data.controls||[]){r[c.key]=c.result;n[c.key]=c.note||''}setResults(r);setNotes(n);setSavedNotes(n)}setLoading(false)})();return()=>{alive=false}},[orderId]);
+
  const start=async()=>{setBusy(true);setError('');try{const {data,error}=await supabase!.rpc('tech_start_pilot_order',{p_order_id:orderId});if(error)throw error;setVisitId(data as string)}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
  const save=async(key:string,label:string,result:Result)=>{if(!visitId)return;setBusy(true);setError('');setMessage('');try{const {error}=await supabase!.rpc('tech_save_pilot_control',{p_order_id:orderId,p_visit_id:visitId,p_key:key,p_label:label,p_result:result,p_note:notes[key]||null});if(error)throw error;setResults(v=>({...v,[key]:result}));setSavedNotes(v=>({...v,[key]:notes[key]||''}));setMessage('Cambios guardados')}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
  const finish=async()=>{if(!visitId)return;setBusy(true);setError('');try{const {error}=await supabase!.rpc('tech_finish_pilot_order',{p_order_id:orderId,p_visit_id:visitId});if(error)throw error;setFinished(true);setMessage('Mantenimiento finalizado y guardado')}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
@@ -24,7 +27,7 @@ export default function TechnicianInspection({orderId,gateCode,onDone}:{orderId:
   <p>Registrá el estado de cada componente y sus observaciones.</p>
   {error&&<p role="alert" style={{color:'#b91c1c'}}>{error}</p>}
   {message&&<p role="status">{message}</p>}
-  {!visitId?<button type="button" disabled={busy} onClick={start}>Iniciar mantenimiento</button>:finished?<button type="button" onClick={onDone}>Volver a mis órdenes</button>:<>
+  {loading?<p>Cargando inspección guardada…</p>:!visitId?<button type="button" disabled={busy} onClick={start}>Iniciar mantenimiento</button>:finished?<button type="button" onClick={onDone}>Volver a mis órdenes</button>:<>
    {checks.map(([key,label])=><div key={key} style={{padding:'18px 0',borderBottom:'1px solid #e2e8f0'}}>
     <strong>{label}</strong>
     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
@@ -34,8 +37,8 @@ export default function TechnicianInspection({orderId,gateCode,onDone}:{orderId:
     {results[key] && notes[key]!==savedNotes[key] && <button type="button" disabled={busy} onClick={()=>save(key,label,results[key])}>Guardar observación</button>}
     {results[key]&&<small style={{display:'block',marginTop:8,color:'#64748b'}}>Estado guardado: {({ok:'Correcto',fault:'Falla',not_applicable:'No aplica',unverifiable:'No verificable'} as Record<Result,string>)[results[key]]}</small>}
    </div>)}
-   <p>{Object.keys(results).length} de {checks.length} controles guardados</p>
-   <button type="button" disabled={busy||Object.keys(results).length===0} onClick={finish}>Finalizar mantenimiento</button>
+   <p>{Object.keys(results).length} de {checks.length} controles guardados. Completá los ocho para finalizar.</p>
+   <button type="button" disabled={busy||Object.keys(results).length!==checks.length} onClick={finish}>Finalizar mantenimiento</button>
   </>}
  </section>;
 }
