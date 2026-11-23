@@ -788,7 +788,7 @@ export function useMyAssignedOrders(companyId: string | undefined, techProfileId
         .from('service_order_technicians')
         .select(
           'id,service_order_id,role,assigned_at,active,' +
-          'service_orders(id,company_id,service_type,status,scheduled_start,scheduled_end,notes,' +
+          'service_orders(id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,' +
           'gates(code,description),facilities(name))',
         )
         .eq('company_id', companyId!)
