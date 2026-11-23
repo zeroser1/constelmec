@@ -1,0 +1,62 @@
+/* Constelmec Premium v1 — non-destructive shared presentation layer.
+   Scope: admin, real access, shared shell and demo. Keep operational states semantic. */
+:root{--cm-navy:#10263e;--cm-navy-2:#183650;--cm-red:#c82237;--cm-bg:#f5f7fa;--cm-surface:#fff;--cm-text:#17283b;--cm-muted:#66788c;--cm-border:#e3e9f0;--cm-radius:16px;--cm-shadow:0 8px 32px rgba(16,38,62,.045);font-family:'DM Sans',system-ui,sans-serif}
+body{background:var(--cm-bg);color:var(--cm-text);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #5c91c9;outline-offset:3px}
+button:not(:disabled){transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+button:not(:disabled):active{transform:translateY(1px)}
+.appshell-root,.adm-shell,.real-shell,.app{font-family:'DM Sans',system-ui,sans-serif}
+.appshell-sidebar,.sidebar{background:linear-gradient(170deg,#10263e 0%,#0b1d31 100%);box-shadow:4px 0 24px rgba(7,22,39,.08)}
+.appshell-brand{padding:23px 18px 20px;border-bottom-color:rgba(255,255,255,.1)}
+.appshell-brand-name{color:#fff;font-size:14px;letter-spacing:.06em}
+.appshell-nav{padding:16px 10px}
+.appshell-nav-btn{border-radius:10px;padding:12px;font-family:inherit;font-weight:600;color:#afc0d2}
+.appshell-nav-btn:hover{background:rgba(255,255,255,.085);color:white}
+.appshell-nav-btn.active{background:rgba(200,34,55,.17);box-shadow:inset 3px 0 var(--cm-red)}
+.appshell-content{background:var(--cm-bg)}
+.adm-shell{background:var(--cm-bg);color:var(--cm-text)}
+.adm-main{max-width:1440px;padding:34px clamp(18px,3vw,48px)}
+.adm-heading h1,.page-head h1,.real-panel h1{font-weight:800;letter-spacing:-.035em}
+.adm-metrics{gap:16px;margin-bottom:22px}
+.adm-metric,.adm-card,.adm-company,.stat,.panel,.real-panel,.real-gate{border:1px solid var(--cm-border);border-radius:var(--cm-radius);background:var(--cm-surface);box-shadow:var(--cm-shadow)}
+.adm-metric{padding:23px;min-height:140px}
+.adm-metric strong{font-size:clamp(27px,3vw,35px);letter-spacing:-.045em}
+.adm-metric span,.adm-card-title span,.adm-order p,.adm-technician p{color:var(--cm-muted)}
+.adm-card{padding:24px}
+.adm-card h2{font-size:18px;letter-spacing:-.025em}
+.adm-company{padding:16px 20px}
+.adm-company select,.real-panel input{border:1px solid #cbd6e2;border-radius:10px;min-height:44px}
+.adm-calendar button{border-radius:10px;min-height:47px}
+.adm-calendar button:not(.selected):hover{background:#e8eef5}
+.adm-calendar button.selected{background:var(--cm-navy)}
+.adm-nav button{border-radius:10px}
+.adm-nav button.active{box-shadow:inset 3px 0 var(--cm-red)}
+.real-shell{background:radial-gradient(circle at 50% 0%,#e8edf4 0%,#f5f7fa 55%);color:var(--cm-text)}
+.real-header{background:linear-gradient(115deg,#0c2035,#1a3956)}
+.real-panel{padding:clamp(24px,4vw,38px);box-shadow:0 18px 60px rgba(16,38,62,.09)}
+.real-primary,.btn.primary{background:var(--cm-red);border-radius:10px;min-height:46px}
+.real-primary:not(:disabled):hover,.btn.primary:not(:disabled):hover{background:#a91b2d;box-shadow:0 7px 20px rgba(200,34,55,.18)}
+.real-outline{border-radius:10px}
+.real-gate{box-shadow:none}
+.real-gate:hover{border-color:#b9c8d8;background:#fcfdff}
+.sidebar{color:#d7e1ec}
+.brand-icon{background:#c82237;color:white}
+.workspace{background:#183650;border-color:#2c4b68}
+.workspace-logo{background:#244663}
+.nav:hover,.nav.active{background:#23435e}
+.nav.active{box-shadow:inset 3px 0 var(--cm-red)}
+.main,.content{background:var(--cm-bg)}
+.topbar{border-bottom-color:var(--cm-border)}
+.eyebrow{color:#a62337}
+.stat{min-height:165px}
+.panel-head{padding:26px}
+.gate-row:hover{background:#f7f9fc}
+.gate-symbol{background:#eaf0f6;color:#315a7a}
+.filter.active{background:#e9eef5;color:#193b59;border-color:#cdd9e6}
+@media(max-width:767px){.adm-main{padding:20px 14px 80px}.adm-card{padding:18px}.adm-metric{padding:17px;min-height:120px}.real-panel{margin:24px auto}.appshell-brand{padding:20px 16px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
+/* Preserve existing dark-mode semantics instead of forcing light surfaces. */
+html[data-theme="dark"]{--cm-bg:#0b1522;--cm-surface:#172536;--cm-text:#f1f5fa;--cm-muted:#b0c0d1;--cm-border:#33465b;--cm-shadow:none}
+html[data-theme="dark"] .appshell-content,html[data-theme="dark"] .adm-shell{background:var(--cm-bg)}
+html[data-theme="dark"] .adm-card,html[data-theme="dark"] .adm-metric,html[data-theme="dark"] .adm-company{background:var(--cm-surface);color:var(--cm-text)}
