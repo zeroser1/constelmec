@@ -171,7 +171,7 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
 export default function TechnicianPortal({companyId, userId, membership}: Props) {
   const [section, setSection] = useState<Section>('gates');
   const queryClient=useQueryClient();
-  const navigateOrders=async()=>{setSection('orders');await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});};
+  const navigateOrders=async()=>{await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSection('orders');};
   const companyName = membership.companies?.name ?? 'Empresa';
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
