@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {supabase} from './lib/supabase';
 
@@ -8,8 +8,9 @@ const checks = [
  ['opening','Prueba de apertura'],['closing','Prueba de cierre']
 ] as const;
 type Result='ok'|'fault'|'not_applicable'|'unverifiable';
-export default function TechnicianInspection({orderId,gateCode,onDone}:{orderId:string;gateCode:string;onDone:()=>void}) {
+export default function TechnicianInspection({orderId,gateCode,onDone,autoStart=false}:{orderId:string;gateCode:string;onDone:()=>void;autoStart?:boolean}) {
  const queryClient=useQueryClient();
+ const autoStartAttempted=useRef(false);
  const [visitId,setVisitId]=useState<string|null>(null);
  const [results,setResults]=useState<Record<string,Result>>({});
  const [notes,setNotes]=useState<Record<string,string>>({});
@@ -27,6 +28,7 @@ export default function TechnicianInspection({orderId,gateCode,onDone}:{orderId:
  useEffect(()=>{let alive=true;void (async()=>{const {data,error}=await supabase!.rpc('tech_get_pilot_progress',{p_order_id:orderId});if(!alive)return;if(error){setError(error.message)}else if(data?.visit_id){setVisitId(data.visit_id);const r:Record<string,Result>={};const n:Record<string,string>={};for(const c of data.controls||[]){r[c.key]=c.result;n[c.key]=c.note||''}setResults(r);setNotes({...n,...(()=>{try{return JSON.parse(sessionStorage.getItem(draftKey)||'{}')}catch{return {}}})()});setSavedNotes(n)}setLoading(false)})();return()=>{alive=false}},[orderId]);
 
  const start=async()=>{setBusy(true);setError('');try{const {data,error}=await supabase!.rpc('tech_start_pilot_order',{p_order_id:orderId});if(error)throw error;setVisitId(data as string)}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
+ useEffect(()=>{if(autoStart&&!loading&&!visitId&&!autoStartAttempted.current){autoStartAttempted.current=true;void start();}},[autoStart,loading,visitId]);
  const save=async(key:string,label:string,result:Result)=>{if(!visitId)return;if((notes[key]||'').length>1000){setError(`La observación de ${label} supera los 1000 caracteres. Acortala en ${(notes[key]||'').length-1000} caracteres.`);document.getElementById(`note-${key}`)?.focus();return;}if(results[key]==='fault'&&result!=='fault'){setCorrection({key,label,result});setReason('');setError('');return;}if(result==='fault'&&(notes[key]||'').trim().length<10){setNotes(n=>({...n,[key]:n[key]||''}));setError(`Describí la falla de ${label} con al menos 10 caracteres.`);document.getElementById(`note-${key}`)?.focus();return;}if(results[key]&&notes[key]?.trim()&&notes[key].trim().length<10){setError(`Escribí al menos 10 caracteres en la observación de ${label} para registrar el cambio.`);document.getElementById(`note-${key}`)?.focus();return;}setBusy(true);setError('');setMessage('');try{const {error}=await supabase!.rpc('tech_save_pilot_control',{p_order_id:orderId,p_visit_id:visitId,p_key:key,p_label:label,p_result:result,p_note:notes[key]||null});if(error)throw error;setResults(v=>({...v,[key]:result}));setSavedNotes(v=>({...v,[key]:notes[key]||''}));setMessage('Cambios guardados')}catch(e){const msg=(e as Error).message;setError(msg.includes('Control inválido')?'La observación supera el límite permitido de 1000 caracteres. Revisá el texto antes de guardar.':msg.includes('inspection_corrections_reason_check')?'La explicación del cambio es demasiado corta. Escribí al menos 10 caracteres.':msg)}finally{setBusy(false)}};
  const saveCorrection=async()=>{if(!visitId||!correction)return;if(reason.trim().length<10||reason.trim()===notes[correction.key]?.trim()){setError('Explicá qué hiciste para corregir la falla (mínimo 10 caracteres, diferente de la descripción de la falla).');return;}setBusy(true);setError('');try{const {error}=await supabase!.rpc('tech_save_pilot_correction',{p_order_id:orderId,p_visit_id:visitId,p_key:correction.key,p_result:correction.result,p_reason:reason.trim()});if(error)throw error;setResults(v=>({...v,[correction.key]:correction.result}));setCorrection(null);setReason('');setMessage('Corrección registrada con su motivo')}catch(e){setError((e as Error).message)}finally{setBusy(false)}};
  const missing=checks.filter(([key])=>!results[key]);
