@@ -69,7 +69,7 @@
 | B-12 | Estándar voluntario | Seguridad en el desarrollo | A.8.26 | ⚠️ | Patrón SECURITY DEFINER aplicado; migraciones con revisión; sin SAST en CI pipeline | — | Media |
 | B-13 | Estándar voluntario | Codificación segura | A.8.28 | ⚠️ | Validación de inputs en RPCs; locking optimista; sin SAST/DAST automatizado | — | Media |
 
-**Resultado sección B:** 4 ✅ / 7 ⚠️ / 2 ❌ de 13 controles
+**Resultado sección B:** 3 ✅ / 8 ⚠️ / 2 ❌ de 13 controles
 
 ---
 
@@ -109,9 +109,9 @@
 | Norma | Tipo | Total | ✅ Cumple | ⚠️ Parcial | ❌ No cumple | Tasa de cumplimiento |
 |-------|------|-------|-----------|------------|-------------|----------------------|
 | Ley 25.326 / AAIP | Obligación legal | 15 | 2 | 5 | 8 | 13% |
-| ISO/IEC 27001 Annex A | Estándar voluntario | 13 | 4 | 7 | 2 | 31% |
+| ISO/IEC 27001 Annex A | Estándar voluntario | 13 | 3 | 8 | 2 | 23% |
 | OWASP ASVS v4.0 L2 | Estándar voluntario | 20 | 10 | 4 | 6 | 50% |
-| **Total** | — | **48** | **16** | **16** | **16** | **33%** |
+| **Total** | — | **48** | **15** | **17** | **16** | **31%** |
 
 ### Distribución por prioridad (requisitos no cumplidos o parciales)
 
@@ -119,7 +119,7 @@
 |-----------|----------|------------|
 | Crítica | 4 | A-03, A-04, A-08, C-20 |
 | Alta | 15 | A-01, A-07, A-09, A-10, A-11, A-12, A-13, A-14, A-15, B-01, B-08, B-10, C-04, C-05, C-06 |
-| Media | 11 | A-02, B-02, B-03, B-04, B-07, B-09, B-12, B-13, C-01, C-02, C-09, C-13, C-16 |
+| Media | 13 | A-02, B-02, B-03, B-04, B-07, B-09, B-12, B-13, C-01, C-02, C-09, C-13, C-16 |
 | Baja | 1 | C-03 |
 
 ### Mapa GAP → Requisitos afectados
