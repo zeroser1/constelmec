@@ -92,7 +92,7 @@ DECLARE v_id uuid;
 BEGIN
   SELECT company_id INTO v_id FROM _test_ids LIMIT 1;
   INSERT INTO public.memberships (company_id, user_id, role, active)
-  VALUES (v_id, '00000000-0000-0000-0000-000000000098'::uuid, 'operator', true)
+  VALUES (v_id, '00000000-0000-0000-0000-000000000098'::uuid, 'technician', true)
   ON CONFLICT (user_id, company_id) DO NOTHING;
   RAISE NOTICE 'SETUP: operator member inserted for RLS test';
 END;
@@ -148,18 +148,58 @@ EXCEPTION
 END;
 $$;
 
--- TEST 1d (Policies Tester only):
--- Authenticated non-admin user calling admin_create_company must receive 42501.
--- Run this in Supabase Policies Tester with a non-admin user JWT.
-DO $$ BEGIN RAISE NOTICE 'TEST 1d SKIP: requires non-admin user JWT — use Policies Tester'; END $$;
+-- TEST 1d: authenticated non-admin (technician member) cannot call admin_create_company
+-- Uses the synthetic non-admin JWT set outside the DO block so SET LOCAL is not subject
+-- to the implicit SAVEPOINT rollback inside the exception handler.
+SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000098","aud":"authenticated"}';
+SET LOCAL "request.jwt.aud" = 'authenticated';
+SET LOCAL ROLE authenticated;
+
+DO $$
+BEGIN
+  PERFORM public.admin_create_company('Non-admin Test');
+  RAISE EXCEPTION 'TEST 1d FAIL: should have raised 42501' USING ERRCODE = 'XX000';
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'TEST 1d PASS: non-admin authenticated user blocked (42501)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 1d FAIL: unexpected % — %', SQLSTATE, SQLERRM
+      USING ERRCODE = 'XX000';
+END;
+$$;
+
+RESET ROLE;
+SET LOCAL "request.jwt.claims" = '';
 
 -- ══════════════════════════════════════════════════════════════════
 -- GROUP 2: Deactivated company blocks RLS
 -- ══════════════════════════════════════════════════════════════════
--- TEST 2a: data-layer check (service role, direct UPDATE)
--- TEST 2b: has_membership returns false when uid = null
--- TEST 2b+: RLS enforced for a real authenticated member with an inactive company
--- For facilities/gates blocking, use Policies Tester with member JWT.
+-- TEST 2a:    data-layer check (service role, direct UPDATE)
+-- TEST 2b-pre: positive — member sees their row while company is ACTIVE
+-- TEST 2b:    has_membership returns false when uid = null
+-- TEST 2b+:   RLS enforced for a real authenticated member after deactivation
+
+-- TEST 2b-pre: member can read their own membership while company is ACTIVE.
+-- Set JWT outside the DO block so it is not affected by any implicit SAVEPOINT.
+SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000098","aud":"authenticated"}';
+SET LOCAL "request.jwt.aud" = 'authenticated';
+SET LOCAL ROLE authenticated;
+
+DO $$
+DECLARE v_id uuid; v_count int;
+BEGIN
+  SELECT company_id INTO v_id FROM _test_ids LIMIT 1;
+  SELECT COUNT(*) INTO v_count FROM public.memberships WHERE company_id = v_id;
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'TEST 2b-pre FAIL: member sees 0 membership rows for ACTIVE company'
+      USING ERRCODE = 'XX000';
+  END IF;
+  RAISE NOTICE 'TEST 2b-pre PASS: member sees % membership row(s) for active company', v_count;
+END;
+$$;
+
+RESET ROLE;
+SET LOCAL "request.jwt.claims" = '';
 
 -- Deactivate the test company
 DO $$
