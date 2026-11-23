@@ -307,7 +307,7 @@ BEGIN
     v_co_a, v_ord_inprog, v_tech_a, 'lead'::public.order_technician_role);
   -- Now try to disable the company assignment.
   PERFORM public.admin_set_technician_company(v_co_a, v_tech_a, false);
-  RAISE EXCEPTION 'TEST 3c FAIL: should have raised P0001 (in-progress order)';
+  RAISE EXCEPTION 'TEST 3c FAIL: should have raised P0001 (in-progress order)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 3c PASS: disable blocked by in-progress order (P0001)';
@@ -427,7 +427,7 @@ BEGIN
   SELECT co_a, tech_a, ord_sched INTO v_co_a, v_tech_a, v_ord_sched FROM _t009 LIMIT 1;
   PERFORM public.admin_assign_order_technician(
     v_co_a, v_ord_sched, v_tech_a, 'support'::public.order_technician_role);
-  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001 (duplicate active)';
+  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001 (duplicate active)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4b PASS: duplicate active assignment rejected (Criterion 2)';
@@ -461,7 +461,7 @@ BEGIN
   PERFORM public.admin_set_technician_company(v_co_a, v_tech2_id, true);
   PERFORM public.admin_assign_order_technician(
     v_co_a, v_ord_sched, v_tech2_id, 'lead'::public.order_technician_role);
-  RAISE EXCEPTION 'TEST 4c FAIL: should have raised P0001 (duplicate lead)';
+  RAISE EXCEPTION 'TEST 4c FAIL: should have raised P0001 (duplicate lead)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4c PASS: second active lead rejected (Criterion 3)';
@@ -623,7 +623,7 @@ BEGIN
   SELECT id INTO v_tech2_id FROM _t009_tech2 LIMIT 1;
   PERFORM public.admin_assign_order_technician(
     v_co_a, v_ord_done, v_tech2_id, 'support'::public.order_technician_role);
-  RAISE EXCEPTION 'TEST 5a FAIL: should have raised P0001 (completed order)';
+  RAISE EXCEPTION 'TEST 5a FAIL: should have raised P0001 (completed order)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 5a PASS: assign to completed order rejected (P0001)';
@@ -640,7 +640,7 @@ BEGIN
   SELECT id INTO v_ord_cancelled FROM _t009_cancelled LIMIT 1;
   PERFORM public.admin_assign_order_technician(
     v_co_a, v_ord_cancelled, v_tech_a, 'lead'::public.order_technician_role);
-  RAISE EXCEPTION 'TEST 5b FAIL: should have raised P0001 (cancelled order)';
+  RAISE EXCEPTION 'TEST 5b FAIL: should have raised P0001 (cancelled order)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 5b PASS: assign to cancelled order rejected (P0001)';
@@ -656,7 +656,7 @@ DECLARE v_co_a uuid; v_tech_a uuid; v_ord_done uuid;
 BEGIN
   SELECT co_a, tech_a, ord_done INTO v_co_a, v_tech_a, v_ord_done FROM _t009 LIMIT 1;
   PERFORM public.admin_remove_order_technician(v_co_a, v_ord_done, v_tech_a);
-  RAISE EXCEPTION 'TEST 5c FAIL: should have raised P0001 (completed order)';
+  RAISE EXCEPTION 'TEST 5c FAIL: should have raised P0001 (completed order)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 5c PASS: remove from completed order rejected (P0001)';
@@ -687,7 +687,7 @@ BEGIN
   SELECT co_a, tech_a INTO v_co_a, v_tech_a FROM _t009 LIMIT 1;
   SELECT id INTO v_ord_cancelled FROM _t009_cancelled LIMIT 1;
   PERFORM public.admin_remove_order_technician(v_co_a, v_ord_cancelled, v_tech_a);
-  RAISE EXCEPTION 'TEST 5d FAIL: should have raised P0001 (cancelled order)';
+  RAISE EXCEPTION 'TEST 5d FAIL: should have raised P0001 (cancelled order)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 5d PASS: remove from cancelled order rejected (P0001)';

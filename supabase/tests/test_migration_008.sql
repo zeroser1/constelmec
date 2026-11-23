@@ -375,7 +375,7 @@ BEGIN
   PERFORM public.admin_assign_order_technician(
     v_company_id, v_order_id, v_technician2_id, 'lead'::public.order_technician_role
   );
-  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001 (duplicate lead)';
+  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001 (duplicate lead)' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4b PASS: second lead rejected (P0001)';

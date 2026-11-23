@@ -378,7 +378,7 @@ BEGIN
     null, null, null, null,
     '2000-01-01 00:00:00+00'::timestamptz
   );
-  RAISE EXCEPTION 'TEST 4a FAIL: should have raised P0001';
+  RAISE EXCEPTION 'TEST 4a FAIL: should have raised P0001' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4a PASS: stale timestamp rejected on update (P0001)';
@@ -396,7 +396,7 @@ BEGIN
     v_contact_id, v_company_id, true,
     '2000-01-01 00:00:00+00'::timestamptz
   );
-  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001';
+  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4b PASS: stale timestamp rejected on set_active (P0001)';

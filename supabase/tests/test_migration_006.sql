@@ -200,7 +200,7 @@ BEGIN
     null, null, null, null,
     '2000-01-01 00:00:00+00'::timestamptz
   );
-  RAISE EXCEPTION 'TEST 2e FAIL: should have raised P0001';
+  RAISE EXCEPTION 'TEST 2e FAIL: should have raised P0001' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 2e PASS: stale timestamp rejected (P0001)';
