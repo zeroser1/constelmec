@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, LogOut, ShieldAlert } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, LogOut, ShieldAlert } from 'lucide-react';
 import './real-access.css';
 import './portal.css';
 import AdminControl from './AdminControl';
@@ -14,6 +14,7 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
   const { session, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [signupMode, setSignupMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -63,7 +64,7 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
 
   return <div className="real-shell"><header className="real-header"><strong>CONSTELMEC</strong><span>MAINTENANCE</span></header>
   {!session ? <main className="real-panel"><div className="real-eyebrow">ACCESO SEGURO</div><h1>{signupMode ? 'Crear cuenta' : 'Bienvenido'}</h1><p>Ingresá con tu cuenta de mantenimiento.</p>
-  <form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label>Contraseña<input type="password" minLength={6} autoComplete={signupMode ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="real-primary" disabled={busy}>{busy ? 'Procesando...' : signupMode ? 'Registrarme' : 'Iniciar sesión'} <ArrowRight size={18} /></button></form>
+  <form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label>Contraseña<div style={{ position: 'relative' }}><input type={showPassword ? 'text' : 'password'} minLength={6} autoComplete={signupMode ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} style={{ paddingRight: 52 }} /><button type="button" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPassword} title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: 0 }}>{showPassword ? <EyeOff size={21} /> : <Eye size={21} />}</button></div></label><button className="real-primary" disabled={busy}>{busy ? 'Procesando...' : signupMode ? 'Registrarme' : 'Iniciar sesión'} <ArrowRight size={18} /></button></form>
   {errorMessage && <p className="real-message" role="status">{errorMessage}</p>}
   <button className="real-link" onClick={() => { setSignupMode(!signupMode); setMessage(''); }}>{signupMode ? 'Ya tengo cuenta' : 'Crear una cuenta'}</button>
   <div className="real-demo"><ShieldAlert size={18} /><span>¿Querés recorrer la app sin una cuenta?</span></div><button className="real-outline" onClick={onDemo}>Explorar demostración del técnico</button><button className="real-outline" style={{ marginTop: 10 }} onClick={() => setAdminDemo(true)}>Explorar centro de control (administrador)</button>
