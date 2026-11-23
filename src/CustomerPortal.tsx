@@ -194,7 +194,6 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
     <div className="cust-shell">
       <div className="cust-company"><DoorOpen size={20}/><span>{companyName}</span></div>
       <h1 className="cust-title">Mis portones</h1>
-      <LiveInspections role="customer" companyId={companyId}/>
       {gates.length === 0 ? (
         <p className="cust-empty">No hay portones registrados para esta empresa.</p>
       ) : gates.map(g => (
