@@ -200,10 +200,13 @@ begin
   if not found then
     raise exception 'technician is not enabled for this company' using errcode = 'P0002';
   end if;
-  if not exists (
-    select 1 from public.service_orders
-    where id = p_order_id and company_id = p_company_id
-  ) then
+  -- Lock the service_orders row to serialize concurrent lead-assign races.
+  -- admin_set_technician_company never locks service_orders, so lock order
+  -- (technician_company_assignments → service_orders) cannot deadlock.
+  perform id from public.service_orders
+  where id = p_order_id and company_id = p_company_id
+  for update;
+  if not found then
     raise exception 'service order not found in this company' using errcode = 'P0002';
   end if;
   if not exists (
