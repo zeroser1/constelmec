@@ -2,6 +2,7 @@ import {supabase} from './lib/supabase';
 import TechnicianInspection from './TechnicianInspection';
 import GateHistory from './GateHistory';
 import {useState} from 'react';
+import {useQueryClient} from '@tanstack/react-query';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
 import type {Membership} from './lib/types';
@@ -129,14 +130,15 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
 }
 
 function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>void}) {
+  const queryClient=useQueryClient();
   const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
   const [pendingGate,setPendingGate]=useState<{id:string;code:string}|null>(null);
   const [historyGate,setHistoryGate]=useState<string|null>(null);
   const [busy,setBusy]=useState<string|null>(null);
   const [error,setError]=useState('');
-  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
+  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
-  const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',out_of_service:'Fuera de servicio'};
+  const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',observations:'Con observaciones',out_of_service:'Fuera de servicio'};
   const stateClass: Record<string,string> = {operational:'operational',with_observations:'in_progress',out_of_service:'unassigned'};
   if (gatesQ.isLoading) return <p className="cust-empty">Cargando portones…</p>;
   const gates = gatesQ.data ?? [];
@@ -168,6 +170,8 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
 
 export default function TechnicianPortal({companyId, userId, membership}: Props) {
   const [section, setSection] = useState<Section>('gates');
+  const queryClient=useQueryClient();
+  const navigateOrders=async()=>{setSection('orders');await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});};
   const companyName = membership.companies?.name ?? 'Empresa';
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
@@ -189,8 +193,8 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
           </button>
         ))}
       </div>
-      {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>setSection('orders')}/>}
-      {section === 'gates' && <GatesSection companyId={companyId} onNavigate={()=>setSection('orders')}/>}
+      {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'gates' && <GatesSection companyId={companyId} onNavigate={()=>{void navigateOrders()}}/>}
     </div>
   );
 }
