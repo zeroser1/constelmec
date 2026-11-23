@@ -140,13 +140,13 @@ function GatesSection({companyId}: {companyId: string}) {
       {error && <p role="alert" className="cust-error">{error}</p>}
       {selected && <TechnicianInspection key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);window.location.reload()}}/>}
       {gates.map(g => (
-        <div key={g.id} className="tech-gate-row">
+        <div key={g.id} className="tech-gate-row tech-gate-row--action">
           <DoorOpen size={18}/>
           <div>
             <strong>{g.code} · {g.description}</strong>
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
-          <button type="button" disabled={!!busy} onClick={()=>startGate({id:g.id,code:g.code})} style={{padding:'10px 14px',borderRadius:9,background:'#c60020',color:'#fff',border:0,fontWeight:700}}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
+          <button className="tech-gate-start" type="button" disabled={!!busy} onClick={()=>startGate({id:g.id,code:g.code})}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
           </span>
