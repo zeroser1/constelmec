@@ -1,6 +1,6 @@
 # Constelmec — Fase 4A: Propuestas de Remediación de Seguridad
 
-**Versión:** 1.0.0  
+**Versión:** 1.1.0  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 4A — Seguridad de datos  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -73,50 +73,70 @@ $$;
 
 **Problema:** Técnicos pueden leer todos los `audit_events` de su empresa, incluyendo `event_payload` con campos `before`/`after` que contienen PII de contactos, perfiles y otros miembros. Amplifica GAP-11.
 
+**Por qué filtrar por `event_type` no es suficiente:**
+
+Filtrar el acceso del técnico a ciertos `event_type` no elimina el riesgo: eventos operacionales (ej. `order_updated`, `order_technician_assigned`) también pueden contener datos sensibles en `event_payload` si su payload incluye campos de la fila antes/después de la operación. El filtrado por tipo restringe el acceso pero no garantiza que lo que sí pasa sea inocuo.
+
+**Decisión de diseño:** Negar acceso al técnico a `audit_events` directamente. Ofrecer una RPC o vista con campos explícitamente permitidos y sin `event_payload`.
+
 **Opciones:**
 
 | Opción | Descripción | Ventajas | Desventajas |
 |--------|-------------|----------|-------------|
-| A — Filtrar por `event_type` en RLS | Política RLS para técnicos limita a eventos operacionales (`order_*`, `qr_*`, `assignment_*`) | Simple, no cambia el schema | La lista de tipos debe mantenerse explícita; nuevos tipos de eventos podrían no incluirse |
-| B — Crear vista `audit_events_tech_view` | Vista que enmascara `event_payload` y filtra por tipos permitidos para técnicos | No expone PII nunca, payload simplificado | Requiere actualizar las consultas del cliente si leen `audit_events` directamente |
-| C — Enmascarar `event_payload` en RLS | Política con `CASE` que retorna `event_payload` sin campos `before`/`after` para técnicos | Mismo schema | Más complejo; PostgreSQL RLS no soporta transformaciones de columna — requiere vista |
+| A — Negar acceso completo a técnicos en `audit_events` | Remover técnicos de la política `audit_read` | Elimina exposición de `event_payload` completamente | Si existe UI de técnico que muestra historial de auditoría, se rompe |
+| B — RPC `tech_get_my_audit_events()` | Función SECURITY DEFINER que retorna (`event_type`, `recorded_at`, `actor_user_id`) SIN `event_payload` para el técnico autenticado | Superficie de datos explícita y controlada | Requiere actualizar `useRealData.ts` si el cliente consulta `audit_events` directamente |
 
-**Recomendación: Opción A (corto plazo) + Opción B (largo plazo).**
+**Recomendación: Opción A + B combinadas.** Remover técnicos de la política RLS y exponer solo la RPC con campos seguros.
 
-**Propuesta Opción A (implementación en 011):**
+**Propuesta (implementación en mig 012):**
 
 ```sql
--- Reemplazar la política audit_read para técnicos con una más restrictiva
--- Tipos de eventos OPERACIONALES (técnico no ve before/after de datos de contacto/empresa):
--- order_*, qr_*, gate_*, assignment_* → SÍ
--- company_*, contact_*, facility_*, technician_profile_* → NO para técnicos (contienen PII)
-
+-- 1. Remplazar política audit_read: técnicos ya NO tienen acceso a audit_events
 ALTER POLICY audit_read ON public.audit_events
   USING (
     app_private.is_platform_admin()
-    OR (
-      app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
-    )
-    OR (
-      -- Técnicos: solo eventos operacionales propios o de órdenes asignadas
-      app_private.has_membership(company_id, ARRAY['technician']::public.member_role[])
-      AND event_type = ANY(ARRAY[
-        'order_created', 'order_updated', 'order_completed',
-        'gate_qr_issued', 'gate_qr_revoked',
-        'order_technician_assigned', 'order_technician_removed',
-        'technician_company_enabled', 'technician_company_disabled'
-      ])
-    )
+    OR app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
+    -- Técnicos: removidos de esta política
   );
+
+-- 2. RPC que expone solo los campos seguros para el técnico
+CREATE OR REPLACE FUNCTION public.tech_get_my_audit_events(
+  p_company_id uuid
+)
+RETURNS TABLE(
+  event_type  text,
+  recorded_at timestamptz,
+  actor_user_id uuid
+  -- Sin event_payload: nunca se expone a técnicos
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT event_type, recorded_at, actor_user_id
+  FROM public.audit_events
+  WHERE company_id = p_company_id
+    AND app_private.has_membership(p_company_id, ARRAY['technician']::public.member_role[])
+    AND event_type = ANY(ARRAY[
+      'order_created', 'order_updated', 'order_completed',
+      'gate_qr_issued', 'gate_qr_revoked',
+      'order_technician_assigned', 'order_technician_removed'
+    ]);
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.tech_get_my_audit_events(uuid) FROM public, anon;
+GRANT  EXECUTE ON FUNCTION public.tech_get_my_audit_events(uuid) TO authenticated;
 ```
 
 **Tests requeridos:**
-- Técnico A no puede leer eventos de tipo `contact_created`, `contact_updated`, `company_created`
-- Técnico A sí puede leer eventos de tipo `order_created`, `gate_qr_issued`
-- Admin A puede leer todos los tipos de eventos de Empresa A
-- Platform admin puede leer todos los tipos de todas las empresas
+- Técnico A: `SELECT * FROM audit_events WHERE company_id = A` → 0 filas (política RLS)
+- Técnico A: `SELECT * FROM audit_events WHERE event_type = 'order_created'` → 0 filas
+- Técnico A: llamada a `tech_get_my_audit_events(A)` → filas sin `event_payload`
+- Técnico A: llamada a `tech_get_my_audit_events(B)` → 0 filas (guard has_membership)
+- Admin A: `SELECT * FROM audit_events WHERE company_id = A` → filas completas incluyendo `event_payload`
 
-**Riesgo:** Medio — cambio en RLS policy activa. Si hay lógica del cliente que espera que el técnico vea todos los tipos, puede romperse. Requiere revisión de `useRealData.ts` para confirmar qué queries de `audit_events` hace el cliente para el rol técnico (ninguna encontrada en el análisis estático — el técnico no tiene UI de auditoría actual).
+**Riesgo:** Medio — cambio en RLS policy activa. Verificar que `useRealData.ts` no tiene queries directas a `audit_events` para el rol técnico (ninguna encontrada en el análisis estático — el técnico no tiene UI de auditoría actual). Si existe una, debe migrarse a la RPC.
 
 ---
 
@@ -163,15 +183,23 @@ CREATE TRIGGER observations_audit
   EXECUTE FUNCTION app_private.observations_audit_trigger();
 ```
 
-**Decisión de diseño:** El payload del evento de auditoría incluye `observation_id` y `gate_id` pero NO el contenido de `body`. Razón: `body` es texto libre que puede contener PII — almacenarlo en `audit_events.event_payload` amplificaría GAP-11 en lugar de reducirlo. La trazabilidad de quién insertó qué observación es suficiente con el `observation_id`.
+**Decisión de diseño:** El payload del evento de auditoría incluye `observation_id` y `gate_id` pero NO el contenido de `body`. Razón: `body` es texto libre que puede contener PII — almacenarlo en `audit_events.event_payload` amplificaría GAP-11 en lugar de reducirlo.
+
+**Corrección de diseño — trigger AFTER INSERT y atomicidad:**
+
+Un trigger AFTER INSERT que lanza una excepción **revierte la transacción completa**, incluyendo el INSERT original. La frase anterior "trigger AFTER → no bloquea la escritura" era incorrecta.
+
+La decisión es explícita: **auditoría obligatoria y atómica**. Si el trigger falla, el INSERT también falla. Esta es la semántica correcta para un sistema de trazabilidad — una observación sin registro de auditoría es indeseable. No se implementa manejo de excepciones en el trigger para "ignorar" fallos de auditoría.
+
+Consecuencia para pruebas: si `audit_events` está llena, bloqueada o su trigger `audit_immutable` produce un conflicto, el INSERT en `customer_observations` también fallará. Esto es aceptable y esperado.
 
 **Tests requeridos:**
 - INSERT en `customer_observations` → `audit_events` recibe fila con `event_type='observation_created'`
 - Payload tiene `observation_id` y `gate_id` pero NO `body`
-- Fallo en trigger no silencia el INSERT (trigger AFTER → no bloquea la escritura)
+- Si el INSERT de auditoría falla (simulando constraint violation) → el INSERT de observación también se revierte
 - El trigger no puede ser desactivado por `authenticated` (es SECURITY DEFINER en `app_private`)
 
-**Riesgo:** Bajo — trigger AFTER no afecta el comportamiento del INSERT original. El único riesgo es un fallo en el trigger que podría lanzar una excepción y revertir el INSERT; para mitigar, se puede usar `EXECUTE PROCEDURE ... COST 100` en modo permisivo, o manejar excepciones dentro del trigger.
+**Riesgo:** Bajo — trigger AFTER con atomicidad explícita. El riesgo de regresión es que si `audit_events` tiene algún constraint que falle inesperadamente (ej. `idempotency_key` duplicado con `gen_random_uuid()` — probabilidad prácticamente nula), el INSERT de observación también fallará. Monitorear en staging.
 
 ---
 
@@ -189,31 +217,58 @@ CREATE TRIGGER observations_audit
 | B — Crear vista `service_orders_client_view` | Vista sin `notes` para miembros que no son admin | Limpia, explícita | El cliente (TypeScript) debe consultar la vista en lugar de la tabla base |
 | C — Mover `notes` a tabla separada `service_order_notes` | Solo admins leen `service_order_notes` | Separación limpia de privilegios | Breaking change — requiere actualización de queries en `useRealData.ts` |
 
-**Recomendación: Opción A con ajuste de policy + documentar como KNOWN_LIMITATION hasta que se implemente la vista.**
+**Recomendación: Opción B (vista + reemplazar política base).**
 
-**Acción inmediata (Opción A simplificada):**
+**Por qué UI-side hiding no es una medida de seguridad:**
 
-PostgreSQL RLS no filtra columnas individuales. La solución a corto plazo es documentar que el campo `notes` es visible a todos los miembros — y que hasta que se implemente una vista o se migre `notes` a tabla separada, el contenido de `notes` no debe contener datos sensibles de clientes. Esta restricción debe aplicarse en la UI (mostrar `notes` solo en el panel de admin) y documentarse como deuda técnica.
+Ocultar `notes` en React no impide el acceso al dato. Mientras la política `service_orders_member_read` (mig 010) permita a todos los miembros leer `service_orders.*`, cualquier cliente puede consultar `supabase.from('service_orders').select('notes')` directamente y obtener el campo. La UI es transparente para las llamadas API del cliente.
 
-**Propuesta de migración (Opción B — para sprint siguiente):**
+**Por qué la vista requiere también cambiar la política base:**
+
+Una vista PostgreSQL sin `SECURITY DEFINER` usa `SECURITY INVOKER` (el contexto del usuario invocante). Esto significa que las políticas RLS de la tabla base (`service_orders`) se aplican igual cuando el cliente consulta la vista. Si la política `service_orders_member_read` sigue permitiendo que técnicos y clientes lean `service_orders.*`, también pueden leer la misma tabla directamente, ignorando la vista. La vista solo protege si se elimina el acceso no-admin a la tabla base.
+
+**Propuesta correcta (mig 014):**
 
 ```sql
--- Vista que excluye `notes` para acceso de técnicos y clientes
--- (admins siguen consultando la tabla base vía RPC o directo con policy de admin)
+-- 1. Eliminar la política member_read que da acceso irrestricto a todos los miembros
+DROP POLICY service_orders_member_read ON public.service_orders;
 
-CREATE VIEW public.service_orders_member_view AS
+-- 2. Nueva política: solo admins leen la tabla base directamente
+CREATE POLICY service_orders_admin_read ON public.service_orders
+  FOR SELECT TO authenticated
+  USING (
+    app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
+    OR app_private.is_platform_admin()
+  );
+
+-- 3. Vista para técnicos y clientes (sin notes)
+CREATE VIEW public.service_orders_member_view
+  WITH (security_invoker = true)   -- RLS del usuario invocante se aplica
+AS
   SELECT
     id, company_id, facility_id, gate_id, service_type, status,
     scheduled_start, scheduled_end, completed_at, next_service_at,
     created_at, updated_at
-    -- Sin: notes (visible solo a admin)
+    -- Sin: notes — accesible solo vía tabla base (admin + platform_admin)
   FROM public.service_orders;
 
--- RLS en la vista heredada de la tabla base (PostgreSQL aplica RLS a la tabla, no a la vista)
--- La consulta del cliente debe ser ajustada a: supabase.from('service_orders_member_view').select(...)
+-- 4. Política RLS en la vista para técnicos y clientes
+-- (security_invoker = true → has_membership() evalúa auth.uid() del usuario invocante)
+CREATE POLICY service_orders_member_view_read ON public.service_orders
+  FOR SELECT TO authenticated
+  USING (
+    app_private.has_membership(company_id, ARRAY['technician', 'customer']::public.member_role[])
+  );
+-- Nota: la vista hereda RLS de la tabla base porque security_invoker=true y la policy
+-- es sobre service_orders (no sobre la vista en sí). PostgREST expone la vista si
+-- está en el schema public y el rol tiene GRANT SELECT.
+
+GRANT SELECT ON public.service_orders_member_view TO authenticated;
 ```
 
-**Riesgo:** Alto si se implementa como breaking change — requiere actualización de `useRealData.ts`. Recomendado como Fase 4B, no urgente para el sprint actual.
+**Cambio requerido en `useRealData.ts`:** Las consultas del cliente para técnicos y clientes deben cambiar de `supabase.from('service_orders')` a `supabase.from('service_orders_member_view')`. Los admins siguen usando la tabla base.
+
+**Riesgo:** Alto si la migración al view no se hace junto con la actualización del cliente TypeScript. Requiere que ambos cambios lleguen en el mismo deploy. Recomendar que se implemente como tarea coordinada con actualización del hook `useRealServiceOrders`.
 
 ---
 
@@ -233,24 +288,46 @@ CREATE VIEW public.service_orders_member_view AS
 
 **Propuesta de bucket policy (para cuando se verifique el entorno remoto):**
 
+**Tres preguntas que deben responderse antes de implementar:**
+
+1. **¿Quién crea los archivos?** Si solo `service_role` puede hacer uploads (desde una Edge Function o backend), el path es server-controlled. Si `authenticated` puede hacer uploads, el usuario puede elegir el path — lo que invalida cualquier política que extraiga `company_id` del path.
+
+2. **¿Qué paths puede elegir el uploader?** La política `reports_read_admin_only` extrae `company_id` del primer segmento del path. Si el uploader (aunque sea service_role) puede elegir arbitrariamente el path, puede crear `{company_id_de_B}/{...}` y habilitar acceso cruzado. La convención de path debe ser server-enforced, no solo asumida por la política de lectura.
+
+3. **¿Existen políticas permisivas adicionales?** Supabase crea políticas de Storage por defecto en algunos casos. Una política restrictiva no neutraliza otras políticas permisivas — PostgreSQL aplica `OR` entre políticas del mismo tipo.
+
+**Propuesta de implementación segura (mig 015):**
+
 ```sql
--- Declarar bucket privado en config.toml (Supabase local):
+-- 1. Bucket privado (config.toml para local; dashboard para producción)
 -- [storage.buckets.reports]
 -- public = false
 
--- Política de acceso: solo admin de empresa puede leer su propio report
--- (en Supabase Cloud, las políticas de Storage se crean vía dashboard o CLI)
-
--- SQL equivalente (Supabase Storage usa schema `storage`):
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('reports', 'reports', false)
 ON CONFLICT (id) DO UPDATE SET public = false;
 
--- Política de lectura: solo miembros con rol admin pueden descargar archivos de su empresa
--- La convención de path debe incluir el company_id:
--- ej: reports/{company_id}/{report_id}/{filename}
--- La política verifica que el {company_id} en el path pertenezca al usuario
+-- 2. Revocar todas las políticas permisivas existentes en el bucket
+-- (verificar con: SELECT * FROM storage.policies WHERE bucket_id = 'reports')
+-- DELETE FROM storage.policies WHERE bucket_id = 'reports'; -- solo si se confirma que son permisivas
 
+-- 3. INSERT solo desde service_role (backend server, Edge Function)
+CREATE POLICY "reports_insert_service_role"
+ON storage.objects FOR INSERT
+TO service_role
+WITH CHECK (
+  bucket_id = 'reports'
+  -- El WITH CHECK en service_role también debe verificar el formato del path
+  -- para prevenir paths arbitrarios: path debe comenzar con un uuid válido de company_id
+  -- Ejemplo:
+  -- AND (storage.foldername(name))[1] IN (SELECT id::text FROM public.companies WHERE active)
+);
+
+-- Sin políticas INSERT para 'authenticated' en este bucket.
+
+-- 4. SELECT: solo admins pueden leer archivos de su empresa
+-- PREREQUISITO: la convención de path es {company_id}/{report_id}/{filename}
+-- y los uploads SOLO los hace service_role con paths server-generados
 CREATE POLICY "reports_read_admin_only"
 ON storage.objects FOR SELECT
 TO authenticated
@@ -262,13 +339,17 @@ USING (
   )
 );
 
-CREATE POLICY "reports_insert_service_role"
-ON storage.objects FOR INSERT
-TO service_role
-WITH CHECK (bucket_id = 'reports');
+-- Sin políticas UPDATE ni DELETE para 'authenticated'.
+-- DELETE desde service_role puede agregarse si se requiere borrado de archivos.
 ```
 
-**Nota de nomenclatura:** La convención `{company_id}/{report_id}/...` en los paths de Storage no está establecida en el código actual. Debe acordarse con el equipo antes de implementar la política, ya que `private_storage_path` en `report_versions` no sigue este patrón todavía.
+**Verificación requerida antes de aplicar:**
+1. `SELECT * FROM storage.policies WHERE bucket_id = 'reports'` — confirmar que no existen políticas permisivas previas
+2. Confirmar que el código de generación de reportes usa service_role para el upload
+3. Confirmar o implementar la convención de path `{company_id}/{report_id}/...` en el código de reportes
+4. Confirmar que `private_storage_path` en `report_versions` sigue la misma convención
+
+**Nota de nomenclatura:** La convención de path no está establecida en el código actual. `private_storage_path` en `report_versions` puede usar un formato diferente. Debe acordarse antes de implementar la política de lectura.
 
 **Riesgo:** Crítico si el bucket existe y es público en producción. Bajo si el bucket no existe aún.
 
