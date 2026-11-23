@@ -55,6 +55,7 @@ function OrderCard({item}: {item: TechAssignedOrder}) {
       </div>
       {o.notes && <p className="tech-order-notes">{o.notes}</p>}
       {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
+      {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado · Registro conservado en el historial.</p>}
       {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onDone={()=>{setInspect(false);window.location.reload()}}/>}
     </div>
   );
@@ -84,13 +85,13 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
   );
 
   const orders = ordersQ.data ?? [];
-  const active = orders.filter(o => o.service_orders && !['cancelled','completed'].includes(o.service_orders.status));
+  const active = orders.filter(o => o.service_orders && o.service_orders.status !== 'cancelled');
 
   if (active.length === 0) return (
     <div className="tech-no-profile">
       <CalendarDays size={34}/>
-      <h2>Sin órdenes asignadas</h2>
-      <p>Cuando un administrador te asigne un servicio, aparecerá aquí.</p>
+      <h2>Sin mantenimientos registrados</h2>
+      <p>Iniciá un mantenimiento desde la pestaña de portones; también aparecerán aquí los trabajos finalizados.</p>
     </div>
   );
 
@@ -157,7 +158,7 @@ function GatesSection({companyId}: {companyId: string}) {
 }
 
 export default function TechnicianPortal({companyId, userId, membership}: Props) {
-  const [section, setSection] = useState<Section>('orders');
+  const [section, setSection] = useState<Section>('gates');
   const companyName = membership.companies?.name ?? 'Empresa';
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
