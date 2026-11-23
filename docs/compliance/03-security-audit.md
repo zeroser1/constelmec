@@ -1,6 +1,6 @@
 # Constelmec — Fase 3: Auditoría de Seguridad Técnica
 
-**Versión:** 0.1.0  
+**Versión:** 0.1.1  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 3 — Auditoría de seguridad técnica  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -21,6 +21,8 @@ La arquitectura de seguridad de datos de Constelmec está bien diseñada en su n
 - `audit_events` **append-only** garantizado por trigger a nivel de base de datos
 - QR tokens: solo el **hash sha256** persiste; el token crudo se retorna una única vez
 - **Sin credenciales hardcodeadas** en el código fuente
+
+> **Alcance de esta auditoría:** Los controles enumerados se verificaron a nivel de código fuente (análisis estático). RLS correcto en código **no garantiza** ausencia de filtraciones por canal lateral (tiempos de respuesta diferencial, enumeración de IDs, etc.). Ese nivel de verificación requiere pruebas dinámicas en un entorno aislado — ver sección 10 y criterio de aprobación del Frente 6.
 
 **Hallazgos nuevos de Fase 3 — riesgo alto:**
 
@@ -87,6 +89,8 @@ Todas las 20 tablas públicas tienen RLS habilitado. La tabla siguiente lista to
 | `service_order_technicians` | service_order_technicians_self_read (mig 010) | SELECT | `technician_id = (subquery auth.uid()) OR has_membership(...,'admin') OR is_platform_admin()` | ✅ Técnico ve sus propias filas |
 
 **Resultado: 20/20 tablas con RLS habilitado. Ninguna tabla con acceso no autenticado. Ninguna tabla sin política SELECT para el rol autenticado.**
+
+> **Limitación metodológica:** Esta verificación es estática (código fuente). RLS correcto en código no descarta ataques de canal lateral ni filtraciones por tiempos de respuesta diferencial. Las pruebas de timing requieren un entorno aislado con identidades reales de prueba.
 
 ### 3.2 `has_membership()` — función central de aislamiento
 
@@ -224,7 +228,7 @@ Este join incluye `technician_profiles(first_name,last_name)`. Supabase/PostgRES
 - `service_orders` → visible via `service_orders_member_read` (mig 010)
 - `technician_profiles` → visible solo el propio perfil via `technician_profiles_self_read` (mig 010)
 
-Resultado: el join retornará `null` para los perfiles de otros técnicos cuando el solicitante es un técnico. **Sin fuga de información entre técnicos.**
+Resultado: el join retornará `null` para los perfiles de otros técnicos cuando el solicitante es un técnico. **No se identificaron rutas de acceso directas entre técnicos a nivel de código.** Filtraciones por canal lateral (tiempo de respuesta diferencial según volumen de datos filtrado por RLS) no han sido probadas.
 
 ### 5.3 Escritura directa en `customer_observations` (GAP-SEC-02)
 
@@ -303,6 +307,18 @@ Adicionalmente, la FK compuesta `(gate_id, company_id) REFERENCES gates(id, comp
 | OAuth providers | todos `enabled = false` | ✅ Superficie reducida |
 | SMS / Twilio | `enabled = false` | ✅ |
 
+### 7.1 Revocación de sesiones y membresías inactivas
+
+**Verificado en código (estático):** `has_membership()` verifica `m.active=true` en cada consulta. Si una membresía se desactiva, las operaciones sujetas a RLS y los guards de RPC fallan desde la siguiente solicitud.
+
+**No verificado — requiere prueba dinámica:** Supabase Auth gestiona sesiones JWT de forma independiente al estado de membresía en la base de datos. Un usuario con membresía desactivada puede continuar realizando solicitudes autenticadas hasta que:
+- Su JWT expira (`jwt_expiry=3600` — hasta 1 hora), **o**
+- Su refresh token sea invalidado explícitamente vía `auth.admin.signOut()` con `scope='global'` desde service_role
+
+**Consecuencia:** Existe una ventana de hasta ~1 hora entre la desactivación de una membresía y la terminación completa de la sesión del usuario. Durante esa ventana, `has_membership()` rechaza operaciones — pero la sesión Supabase Auth sigue activa. Esto debe verificarse con pruebas dinámicas: desactivar membresía → intentar operación → confirmar rechazo DB-level → intentar refresh → confirmar estado del token.
+
+**Este comportamiento no es un bug en el código actual**, pero es un riesgo operativo que debe documentarse y probarse antes de aprobar el Frente 6.
+
 ---
 
 ## 8. Storage
@@ -371,4 +387,4 @@ La tabla `report_versions` referencia `private_storage_path` para rutas de archi
 ---
 
 *Documento generado automáticamente a partir del estado del repositorio. No contiene datos de producción ni credenciales.*  
-*Prerequisitos: `00-baseline.md` v0.1.1 · `01-compliance-matrix.md` v0.2.0 · `02-data-inventory.md` v0.2.0.*
+*Prerequisitos: `00-baseline.md` v0.1.2 · `01-compliance-matrix.md` v0.2.1 · `02-data-inventory.md` v0.2.0.*
