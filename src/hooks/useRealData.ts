@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { AdminGate, Membership, RealFacility, RealGate } from '../lib/types';
+import type { AdminGate, CompanyContact, ContactCategory, Membership, RealFacility, RealGate } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
 
 export function usePlatformAdmin(userId: string | undefined) {
@@ -402,4 +402,200 @@ export function useQRMutations(companyId: string | undefined, facilityId: string
   });
 
   return { issueQR, revokeQR };
+}
+
+// ── Contact hooks (migration 007) ─────────────────────────────────────────
+
+export type ContactFormInput = {
+  first_name: string;
+  last_name: string;
+  category: ContactCategory;
+  email: string;
+  phone: string;
+  notes: string;
+  facility_id: string | null;
+};
+
+export function useCompanyContacts(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['contacts', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<CompanyContact[]> => {
+      const { data, error } = await supabase!
+        .from('company_contacts')
+        .select('id,company_id,facility_id,first_name,last_name,category,email,phone,notes,active,created_at,updated_at')
+        .eq('company_id', companyId!)
+        .order('last_name', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<CompanyContact[]>(data);
+    },
+  });
+}
+
+export function useCompanyContactMutations(companyId: string | undefined) {
+  const qc = useQueryClient();
+  const inv = () => qc.invalidateQueries({ queryKey: ['contacts', companyId] });
+
+  const createContact = useMutation({
+    mutationFn: async (input: ContactFormInput): Promise<string> => {
+      if (!companyId) throw new Error('companyId is required');
+      const { data, error } = await supabase!.rpc('admin_create_company_contact', {
+        p_company_id:  companyId,
+        p_first_name:  input.first_name,
+        p_last_name:   input.last_name,
+        p_category:    input.category,
+        p_email:       input.email      || null,
+        p_phone:       input.phone      || null,
+        p_notes:       input.notes      || null,
+        p_facility_id: input.facility_id ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: inv,
+  });
+
+  const updateContact = useMutation({
+    mutationFn: async (
+      input: ContactFormInput & { id: string; expected_updated_at?: string | null }
+    ): Promise<void> => {
+      if (!companyId) throw new Error('companyId is required');
+      const { error } = await supabase!.rpc('admin_update_company_contact', {
+        p_contact_id:          input.id,
+        p_company_id:          companyId,
+        p_first_name:          input.first_name,
+        p_last_name:           input.last_name,
+        p_category:            input.category,
+        p_email:               input.email      || null,
+        p_phone:               input.phone      || null,
+        p_notes:               input.notes      || null,
+        p_facility_id:         input.facility_id ?? null,
+        p_expected_updated_at: input.expected_updated_at ?? null,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  const setContactActive = useMutation({
+    mutationFn: async ({
+      id, active, expected_updated_at,
+    }: { id: string; active: boolean; expected_updated_at: string }): Promise<void> => {
+      if (!companyId) throw new Error('companyId is required');
+      const { error } = await supabase!.rpc('admin_set_company_contact_active', {
+        p_contact_id:          id,
+        p_company_id:          companyId,
+        p_active:              active,
+        p_expected_updated_at: expected_updated_at,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: inv,
+  });
+
+  return { createContact, updateContact, setContactActive };
+}
+
+// ── Technician hooks (migration 008) ──────────────────────────────────────
+
+export type TechnicianCompanyAssignment = {
+  id: string;
+  technician_id: string;
+  company_id: string;
+  active: boolean;
+};
+
+export type TechnicianFacilityAssignment = {
+  id: string;
+  technician_id: string;
+  facility_id: string;
+  company_id: string;
+  active: boolean;
+};
+
+export function useTechnicianProfiles(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['technicians', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<Technician[]> => {
+      const { data, error } = await supabase!
+        .from('technician_profiles')
+        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
+        .eq('company_id', companyId!)
+        .order('last_name', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<Technician[]>(data);
+    },
+  });
+}
+
+export function useTechnicianCompanyAssignments(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['tech-company-assignments', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<TechnicianCompanyAssignment[]> => {
+      const { data, error } = await supabase!
+        .from('technician_company_assignments')
+        .select('id,technician_id,company_id,active')
+        .eq('company_id', companyId!);
+      if (error) throw new Error(error.message);
+      return unwrap<TechnicianCompanyAssignment[]>(data);
+    },
+  });
+}
+
+export function useTechnicianFacilityAssignments(
+  companyId: string | undefined,
+  technicianId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['tech-facility-assignments', companyId, technicianId],
+    enabled: !!companyId && !!technicianId && !!supabase,
+    queryFn: async (): Promise<TechnicianFacilityAssignment[]> => {
+      const { data, error } = await supabase!
+        .from('technician_facility_assignments')
+        .select('id,technician_id,facility_id,company_id,active')
+        .eq('technician_id', technicianId!)
+        .eq('company_id', companyId!);
+      if (error) throw new Error(error.message);
+      return unwrap<TechnicianFacilityAssignment[]>(data);
+    },
+  });
+}
+
+export function useTechnicianMutations() {
+  const qc = useQueryClient();
+
+  const setCompanyActive = useMutation({
+    mutationFn: async ({ active, cId, tId }: { active: boolean; cId: string; tId: string }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_set_technician_company', {
+        p_company_id:    cId,
+        p_technician_id: tId,
+        p_active:        active,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['tech-company-assignments', variables.cId] });
+      // Disabling cascades to facility assignments via SQL trigger — refresh both.
+      qc.invalidateQueries({ queryKey: ['tech-facility-assignments', variables.cId, variables.tId] });
+    },
+  });
+
+  const setFacilityActive = useMutation({
+    mutationFn: async ({ facilityId, active, cId, tId }: { facilityId: string; active: boolean; cId: string; tId: string }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_set_technician_facility', {
+        p_company_id:    cId,
+        p_technician_id: tId,
+        p_facility_id:   facilityId,
+        p_active:        active,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['tech-facility-assignments', variables.cId, variables.tId] });
+    },
+  });
+
+  return { setCompanyActive, setFacilityActive };
 }

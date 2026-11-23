@@ -79,3 +79,22 @@ export type AdminGate = {
   updated_at: string | null;
   gate_qr_codes?: GateQR[];
 };
+
+// ── Company contacts types (migration 007) ────────────────────────────────
+
+export type ContactCategory = 'commercial' | 'administrative' | 'technical' | 'emergency' | 'other';
+
+export type CompanyContact = {
+  id: string;
+  company_id: string;
+  facility_id: string | null;
+  first_name: string;
+  last_name: string;
+  category: ContactCategory;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Building2, CalendarDays, MapPin } from 'lucide-react';
+import { Building2, CalendarDays, MapPin, Users } from 'lucide-react';
 import AdminControl from './AdminControl';
 import AppShell from './AppShell';
 import CompanyManager from './CompanyManager';
+import ContactManager from './ContactManager';
 import FacilityManager from './FacilityManager';
 import { usePlatformAdminData } from './hooks/useRealData';
 
-type Section = 'companies' | 'operations' | 'facilities';
+type Section = 'companies' | 'operations' | 'facilities' | 'contacts';
 
 export default function PlatformAdminControl({
   userId,
@@ -41,6 +42,7 @@ export default function PlatformAdminControl({
     { key: 'companies',  label: 'Empresas',      icon: Building2,   badge: companies.length > 0 ? companies.length : undefined },
     { key: 'operations', label: 'Operaciones',   icon: CalendarDays },
     { key: 'facilities', label: 'Instalaciones', icon: MapPin },
+    { key: 'contacts',   label: 'Contactos',     icon: Users },
   ];
 
   return (
@@ -58,6 +60,8 @@ export default function PlatformAdminControl({
           isLoading={dataQ.isLoading}
           error={dataQ.error}
         />
+      ) : section === 'contacts' ? (
+        <ContactManager companies={companies} />
       ) : section === 'facilities' ? (
         <FacilityManager companies={companies} />
       ) : (
@@ -65,6 +69,7 @@ export default function PlatformAdminControl({
           companies={companies}
           orders={orders}
           technicians={technicians}
+          embedded
         />
       )}
     </AppShell>
