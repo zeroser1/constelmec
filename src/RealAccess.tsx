@@ -6,6 +6,7 @@ import PlatformAdminControl from './PlatformAdminControl';
 import { supabaseConfigured } from './lib/supabase';
 import { useAuth, signIn, signUp, signOut } from './hooks/useAuth';
 import { useMembership, useRealGates, useAdminData, usePlatformAdmin } from './hooks/useRealData';
+import AppShell from './AppShell';
 import { SkeletonList } from './components/Skeleton';
 
 export default function RealAccess({ onDemo }: { onDemo: () => void }) {
@@ -51,12 +52,13 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
 
   if (session && platformAdminQ.data === true) return <PlatformAdminControl userId={session.user.id} email={session.user.email ?? ''} onLogout={logout} />;
 
-  if (session && membership?.role === 'admin') return <><AdminControl companies={adminQ.data?.companies ?? []} orders={adminQ.data?.orders ?? []} technicians={adminQ.data?.technicians ?? []} /><button className="adm-exit-demo" onClick={logout}>Cerrar sesión</button></>;
+  if (session && membership?.role === 'admin') return <AdminControl companies={adminQ.data?.companies ?? []} orders={adminQ.data?.orders ?? []} technicians={adminQ.data?.technicians ?? []} email={session.user.email ?? ''} onLogout={logout} />;
 
   if (!supabaseConfigured) return <div className="real-shell"><div className="real-panel"><h1>Conexión pendiente</h1><p>Faltan variables de entorno públicas de Supabase en este despliegue.</p><button onClick={onDemo}>Abrir demostración</button></div></div>;
 
   if (loading || (session && (platformAdminQ.isLoading || membershipQ.isLoading))) return <div className="real-shell">Cargando...</div>;
 
+  if(session&&membership)return<AppShell navItems={[{key:'gates',label:'Portones',icon:HardHat}]} activeSection="gates" onNavigate={()=>undefined} userEmail={session.user.email??''} onLogout={logout}><div style={{padding:'20px 24px'}}>{errorMessage&&<p className="real-message" role="alert">{errorMessage}</p>}<div className="real-company"><Building2 size={23}/><div><strong>{membership.companies?.name||'Empresa'}</strong><span>{membership.role==='technician'?'Técnico':membership.role==='customer'?'Cliente':'Administrador'}</span></div></div><h2 style={{margin:'18px 0 10px'}}>Portones registrados ({gates.length})</h2>{gatesQ.isLoading?<SkeletonList rows={3}/>:gates.length?gates.map(g=><article className="real-gate" key={g.id}><HardHat size={21}/><div><strong>{g.code} · {g.description}</strong><p>{g.facilities?.name||'Sin instalación'} · {g.model||'Sin modelo'}</p><small>Estado: {g.operational_state} · Serie: {g.serial_number||'—'}</small></div></article>):<p className="real-empty">Todavía no hay portones registrados para esta empresa.</p>}<p className="real-note">Vista de datos reales de solo lectura. La edición de inspecciones se habilitará con operaciones transaccionales y permisos verificados.</p><button className="real-outline" onClick={onDemo}>Abrir simulador de inspección</button></div></AppShell>;
   return <div className="real-shell"><header className="real-header"><strong>CONSTELMEC</strong><span>MAINTENANCE</span></header>
   {!session ? <main className="real-panel"><div className="real-eyebrow">ACCESO SEGURO</div><h1>{signupMode ? 'Crear cuenta' : 'Bienvenido'}</h1><p>Ingresá con tu cuenta de mantenimiento.</p>
   <form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label>Contraseña<input type="password" minLength={6} autoComplete={signupMode ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="real-primary" disabled={busy}>{busy ? 'Procesando...' : signupMode ? 'Registrarme' : 'Iniciar sesión'} <ArrowRight size={18} /></button></form>

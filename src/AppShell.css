@@ -1,0 +1,233 @@
+/* AppShell — shared responsive sidebar shell */
+.appshell-root {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+.appshell-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #10263e;
+  color: #fff;
+  transition: width 0.2s ease;
+  overflow: hidden;
+  z-index: 100;
+}
+.appshell-sidebar.collapsed { width: 64px; }
+
+/* Brand */
+.appshell-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.appshell-brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.appshell-brand-text {
+  overflow: hidden;
+  transition: opacity 0.15s;
+  min-width: 0;
+}
+.appshell-sidebar.collapsed .appshell-brand-text { opacity: 0; width: 0; }
+.appshell-brand-name {
+  font-weight: 800;
+  font-size: 13px;
+  color: #e0e0ff;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.appshell-brand-sub {
+  font-size: 10px;
+  color: #8090b0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Nav */
+.appshell-nav {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+.appshell-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: #8090b0;
+  font-size: 13px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 400;
+  margin-bottom: 2px;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.appshell-nav-btn:hover { background: rgba(255,255,255,0.07); color: #cdd6e4; }
+.appshell-nav-btn.active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.18);
+  color: #fff;
+  font-weight: 700;
+}
+.appshell-nav-btn-icon { flex-shrink: 0; display: flex; }
+.appshell-nav-btn-label { flex: 1; overflow: hidden; transition: opacity 0.15s; }
+.appshell-sidebar.collapsed .appshell-nav-btn-label { opacity: 0; width: 0; }
+.appshell-nav-badge {
+  background: rgba(255,255,255,0.18);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.appshell-sidebar.collapsed .appshell-nav-badge { display: none; }
+
+/* Footer */
+.appshell-footer {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+/* Override fixed positioning when ThemeSwitch is inside the sidebar */
+.appshell-footer .constelmec-theme-switch {
+  position: static !important;
+  right: auto !important;
+  top: auto !important;
+  z-index: auto !important;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 7px;
+  font-size: 12px;
+  justify-content: flex-start;
+  box-shadow: none;
+}
+.appshell-sidebar.collapsed .constelmec-theme-switch span { display: none; }
+
+.appshell-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: #8090b0;
+  font-size: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  white-space: nowrap;
+  text-align: left;
+}
+.appshell-logout-btn:hover { background: rgba(255,255,255,0.07); color: #cdd6e4; }
+.appshell-logout-label { transition: opacity 0.15s; }
+.appshell-sidebar.collapsed .appshell-logout-label { opacity: 0; width: 0; overflow: hidden; }
+
+/* Collapse toggle */
+.appshell-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #566a7f;
+  font-size: 11px;
+  font-family: Arial, Helvetica, sans-serif;
+  flex-shrink: 0;
+}
+.appshell-collapse-btn:hover { color: #8090b0; }
+.appshell-collapse-label { transition: opacity 0.15s; }
+.appshell-sidebar.collapsed .appshell-collapse-label { opacity: 0; width: 0; overflow: hidden; }
+
+/* ── Content ──────────────────────────────────────────────────────────────── */
+.appshell-content { flex: 1; overflow-y: auto; min-width: 0; }
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+.appshell-overlay { display: none; }
+.appshell-hamburger { display: none; }
+
+@media (max-width: 767px) {
+  .appshell-root { flex-direction: column; }
+
+  .appshell-hamburger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #10263e;
+    color: #e0e0ff;
+    border: none;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .appshell-hamburger:hover { background: #172e4a; }
+
+  .appshell-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 240px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 200;
+  }
+  .appshell-sidebar.mobile-open { transform: translateX(0); }
+
+  .appshell-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 199;
+  }
+  .appshell-collapse-btn { display: none; }
+}
+
+/* AdminControl embedded in AppShell — suppress its own chrome */
+.adm-shell--embedded { min-height: 0; }
+.adm-shell--embedded .adm-header { display: none; }
+.adm-shell--embedded .adm-layout { grid-template-columns: 1fr; max-width: 100%; margin: 0; }
+.adm-shell--embedded .adm-nav { display: none; }
+html[data-theme="dark"] .adm-shell--embedded { background: #0b1522; }
+html[data-theme="dark"] .appshell-sidebar {
+  background: #07111e;
+  border-right: 1px solid #1e3047;
+}
+html[data-theme="dark"] .appshell-hamburger { background: #07111e; }
+html[data-theme="dark"] .appshell-footer .constelmec-theme-switch {
+  background: #172536 !important;
+  border-color: #2d4360 !important;
+}
+html[data-theme="dark"] .appshell-footer .constelmec-theme-switch:hover {
+  background: #223247 !important;
+}
