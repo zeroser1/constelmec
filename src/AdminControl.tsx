@@ -1,5 +1,7 @@
 import {useMemo,useState} from 'react';import AppShell from './AppShell';
-import {AlertTriangle,Building2,CalendarDays,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,Users,Wrench} from 'lucide-react';
+import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,Users,Wrench} from 'lucide-react';
+import {useOrderTechnicians,useOrderTechnicianMutations,useTechnicianProfiles} from './hooks/useRealData';
+import type {OrderTechnicianRole} from './lib/types';
 import './admin.css';
 import ContactManager from './ContactManager';
 import TechnicianManager from './TechnicianManager';
@@ -32,8 +34,42 @@ function samples():{orders:ServiceOrder[];techs:Technician[]}{
  return {orders,techs};
 }
 const demo=samples();
-export default function AdminControl({companies,orders,demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
- const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));
+function OrderTechPanel({order,demoMode,allTechs}:{order:ServiceOrder;demoMode:boolean;allTechs:Technician[]}){
+  const {data:techs=[],isLoading}=useOrderTechnicians(demoMode?undefined:order.company_id,demoMode?undefined:order.id);
+  const {assignTechnician,removeTechnician}=useOrderTechnicianMutations();
+  const techProfiles=useTechnicianProfiles(demoMode?undefined:order.company_id);
+  const [addOpen,setAddOpen]=useState(false);
+  const [selTech,setSelTech]=useState('');
+  const [selRole,setSelRole]=useState<OrderTechnicianRole>('support');
+  const isClosed=order.status==='completed'||order.status==='cancelled';
+  const demoList=order.technician_profiles?[{id:'demo',service_order_id:order.id,technician_id:'',company_id:order.company_id,role:'lead' as OrderTechnicianRole,assigned_at:'',active:true,technician_profiles:{first_name:order.technician_profiles.first_name,last_name:order.technician_profiles.last_name,specialty:null as string|null}}]:[];
+  const display=demoMode?demoList:techs;
+  const available=(demoMode?allTechs.filter(t=>t.company_id===order.company_id):techProfiles.data??[]).filter(t=>t.active);
+  return <div className="adm-tech-panel">
+    {isLoading&&<span className="adm-empty">Cargando…</span>}
+    {!isLoading&&display.length===0&&<span className="adm-empty">Sin técnicos asignados.</span>}
+    {display.map(t=><div key={t.id} className="adm-tech-row">
+      <span className={`adm-role adm-role--${t.role}`}>{t.role==='lead'?'Principal':'Apoyo'}</span>
+      <span className="adm-tech-name">{t.technician_profiles?.first_name} {t.technician_profiles?.last_name}</span>
+      {!demoMode&&!isClosed&&<button className="adm-tech-remove" title="Quitar" onClick={()=>removeTechnician.mutate({companyId:order.company_id,orderId:order.id,technicianId:t.technician_id})}>×</button>}
+    </div>)}
+    {!demoMode&&!isClosed&&!addOpen&&<button className="adm-tech-add" onClick={()=>{setAddOpen(true);setSelTech('');setSelRole('support');}}>+ Asignar técnico</button>}
+    {addOpen&&<div className="adm-tech-form">
+      <select value={selTech} onChange={e=>setSelTech(e.target.value)}>
+        <option value="">Técnico…</option>
+        {available.map(t=><option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
+      </select>
+      <select value={selRole} onChange={e=>setSelRole(e.target.value as OrderTechnicianRole)}>
+        <option value="support">Apoyo</option>
+        <option value="lead">Principal</option>
+      </select>
+      <button disabled={!selTech||assignTechnician.isPending} onClick={()=>{if(!selTech)return;assignTechnician.mutate({companyId:order.company_id,orderId:order.id,technicianId:selTech,role:selRole},{onSuccess:()=>setAddOpen(false)});}}>Asignar</button>
+      <button onClick={()=>setAddOpen(false)}>Cancelar</button>
+    </div>}
+  </div>;
+}
+export default function AdminControl({companies,orders,technicians=[],demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
+ const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);
  const allCompanies=demoMode?sampleCompanies:companies;const allOrders=demoMode?demo.orders:orders;
  const filtered=useMemo(()=>allOrders.filter(o=>company==='all'||o.company_id===company),[allOrders,company]);
 
@@ -44,7 +80,7 @@ export default function AdminControl({companies,orders,demoMode=false,email,onLo
  const daysInMonth=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();const start=(new Date(month.getFullYear(),month.getMonth(),1).getDay()+6)%7;
  const companyName=(id:string)=>allCompanies.find(c=>c.id===id)?.name||'Empresa';
  const cards=[{label:'Servicios hoy',value:todayOrders.length,icon:CalendarDays},{label:'En curso',value:filtered.filter(o=>o.status==='in_progress').length,icon:Wrench},{label:'Próximos 7 días',value:upcoming.filter(o=>(new Date(o.scheduled_start).getTime()-Date.now())<7*86400000).length,icon:Clock3},{label:'Vencidos',value:overdue.length,icon:AlertTriangle}];
- const orderCard=(o:ServiceOrder)=><article className="adm-order" key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><p><HardHat size={14}/> {o.technician_profiles?o.technician_profiles.first_name+' '+o.technician_profiles.last_name:'Sin técnico asignado'}</p></article>;
+ const orderCard=(o:ServiceOrder)=>{const exp=expandedOrder===o.id;return <article className={'adm-order'+(exp?' adm-order--expanded':'')} key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><button className="adm-order-tech-toggle" onClick={()=>setExpandedOrder(exp?null:o.id)}><HardHat size={14}/>{exp?'Ocultar técnicos':(o.technician_profiles?o.technician_profiles.first_name+' '+o.technician_profiles.last_name:'Sin técnico · Ver asignaciones')}<ChevronDown size={12} style={{transform:exp?'rotate(180deg)':'none'}}/></button>{exp&&<OrderTechPanel order={o} demoMode={demoMode} allTechs={technicians}/>}</article>;};
  const useShell=!demoMode&&!!onLogout;const shellNavItems=[{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}];const _shell=<div className={"adm-shell"+(useShell||embedded?" adm-shell--embedded":"")}><header className="adm-header"><div className="adm-brand"><span className="adm-brand-mark" aria-hidden="true"/>CONSTELMEC</div><span className="adm-subtitle">CENTRO DE CONTROL</span></header><div className="adm-layout"><nav className="adm-nav" aria-label="Administración">{[{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}].map(({key,label,icon:Icon})=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key as typeof section)}><Icon size={19}/>{label}</button>)}</nav><main className="adm-main"><div className="adm-heading"><div><small>OPERACIONES / {section==='overview'?'RESUMEN':section==='calendar'?'CALENDARIO':section==='contacts'?'CONTACTOS':'TÉCNICOS'}</small><h1>{section==='overview'?'Centro de control':section==='calendar'?'Agenda de servicios':section==='contacts'?'Contactos':'Equipo técnico'}</h1></div>{demoMode&&<span className="adm-demo">DATOS DE DEMOSTRACIÓN</span>}</div>{(section==='overview'||section==='calendar')&&<label className="adm-company"><Building2 size={18}/><span>Empresa</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="all">Todas las empresas</option>{allCompanies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
  {section==='overview'&&<><div className="adm-metrics">{cards.map(({label,value,icon:Icon},i)=><div className="adm-metric" key={label}><div><span>{label}</span><Icon size={19} color={i===3?'#d3273d':'#8193a6'}/></div><strong>{value}</strong></div>)}</div><div className="adm-columns"><section className="adm-card"><div className="adm-card-title"><h2>Servicios de hoy</h2><button onClick={()=>{setSection('calendar');setSelected(today)}}>Ver agenda</button></div>{todayOrders.length?todayOrders.map(orderCard):<p className="adm-empty">No hay servicios programados para hoy.</p>}</section><section className="adm-card"><div className="adm-card-title"><h2>Próximos servicios</h2><span>{upcoming.length} pendientes</span></div>{upcoming.length?upcoming.slice(0,5).map(orderCard):<p className="adm-empty">No hay próximos servicios pendientes.</p>}</section></div>{overdue.length>0&&<section className="adm-card adm-warning"><h2><AlertTriangle size={19}/> Servicios vencidos</h2>{overdue.map(orderCard)}</section>}</>}
  {section==='calendar'&&<div className="adm-columns"><section className="adm-card"><div className="adm-calendar-title"><button aria-label="Mes anterior" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft/></button><h2>{month.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</h2><button aria-label="Mes siguiente" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight/></button></div><div className="adm-calendar">{['L','M','M','J','V','S','D'].map((d,i)=><span className="adm-weekday" key={i}>{d}</span>)}{Array.from({length:start},(_,i)=><span key={'pad'+i}/>)}{Array.from({length:daysInMonth},(_,i)=>{const day=dayKey(new Date(month.getFullYear(),month.getMonth(),i+1));const has=filtered.some(o=>dayKey(new Date(o.scheduled_start))===day);return <button key={day} className={[selected===day?'selected':'',day===today?'today':''].join(' ')} onClick={()=>setSelected(day)} aria-label={day}>{i+1}{has&&<i/>}</button>})}</div></section><section className="adm-card"><h2>{new Date(selected+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</h2>{chosen.length?chosen.map(orderCard):<p className="adm-empty">No hay servicios para esta fecha.</p>}</section></div>}

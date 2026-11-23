@@ -2,3 +2,34 @@
 
 .adm-shell--embedded .adm-header,.adm-shell--embedded .adm-nav{display:none}.adm-shell--embedded{min-height:0}html[data-theme=dark] .adm-shell--embedded{background:#0b1522}
 .adm-exit-demo{position:fixed;bottom:15px;left:15px;z-index:70;background:#c91f35;color:white;border:0;border-radius:22px;padding:11px 16px;box-shadow:0 3px 12px #0004;font-size:12px;font-weight:800;cursor:pointer}html[data-theme=dark] .adm-exit-demo{background:#b21d31}
+/* Order technician panel (frente 6) */
+.adm-order-tech-toggle{display:flex;align-items:center;gap:.45rem;background:none;border:none;padding:.35rem 0;cursor:pointer;color:#526479;font-size:.82rem;width:100%;text-align:left;}
+.adm-order-tech-toggle:hover{color:#10263e;}
+.adm-order--expanded{background:#f9fbfd;}
+.adm-tech-panel{padding:.6rem 0 0;border-top:1px solid #e8edf2;}
+.adm-tech-row{display:flex;align-items:center;gap:.5rem;padding:.25rem 0;}
+.adm-role{font-size:.7rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;}
+.adm-role--lead{background:#ddeef8;color:#0a4a7a;}
+.adm-role--support{background:#e6f4e6;color:#1a6031;}
+.adm-tech-name{font-size:.82rem;color:#3a5068;}
+.adm-tech-remove{margin-left:auto;border:none;background:none;color:#a0a8b4;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 .2rem;}
+.adm-tech-remove:hover{color:#d3273d;}
+.adm-tech-add{margin-top:.5rem;width:100%;background:none;border:1px dashed #c2d0de;color:#728499;cursor:pointer;padding:.35rem .6rem;border-radius:5px;font-size:.8rem;}
+.adm-tech-add:hover{border-color:#8da8c0;color:#435f75;}
+.adm-tech-form{margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.35rem;}
+.adm-tech-form select{flex:1;min-width:110px;font-size:.82rem;border:1px solid #d0dae4;border-radius:5px;padding:.3rem .5rem;background:white;color:#1b2838;}
+.adm-tech-form button{font-size:.82rem;padding:.3rem .7rem;border-radius:5px;cursor:pointer;border:1px solid #d0dae4;}
+.adm-tech-form button:first-of-type{background:#10263e;color:white;border-color:#10263e;}
+.adm-tech-form button:first-of-type:disabled{opacity:.45;cursor:not-allowed;}
+.adm-tech-form button:last-child{background:none;color:#728499;}
+html[data-theme=dark] .adm-order-tech-toggle{color:#90a0b4;}
+html[data-theme=dark] .adm-order-tech-toggle:hover{color:#e0ebf5;}
+html[data-theme=dark] .adm-order--expanded{background:#1a2b3c;}
+html[data-theme=dark] .adm-tech-panel{border-color:#34485d;}
+html[data-theme=dark] .adm-role--lead{background:#1a3a60;color:#90c4f0;}
+html[data-theme=dark] .adm-role--support{background:#1a3a1a;color:#82c882;}
+html[data-theme=dark] .adm-tech-name{color:#b8c8d9;}
+html[data-theme=dark] .adm-tech-add{border-color:#446080;color:#7a98b4;}
+html[data-theme=dark] .adm-tech-form select{background:#24374c;color:#f1f5fa;border-color:#51657b;}
+html[data-theme=dark] .adm-tech-form button:first-of-type{background:#2d5080;border-color:#3d6090;}
+html[data-theme=dark] .adm-tech-form button:last-child{color:#90a0b4;}
