@@ -1,3 +1,4 @@
+import {supabase} from './lib/supabase';
 import TechnicianInspection from './TechnicianInspection';
 import {useState} from 'react';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
@@ -123,6 +124,10 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
 }
 
 function GatesSection({companyId}: {companyId: string}) {
+  const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
+  const [busy,setBusy]=useState<string|null>(null);
+  const [error,setError]=useState('');
+  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;setSelected({id:data as string,code:gate.code});}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
   const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',out_of_service:'Fuera de servicio'};
   const stateClass: Record<string,string> = {operational:'operational',with_observations:'in_progress',out_of_service:'unassigned'};
@@ -131,6 +136,9 @@ function GatesSection({companyId}: {companyId: string}) {
   if (gates.length === 0) return <p className="cust-empty">No hay portones registrados.</p>;
   return (
     <div className="tech-gates-list">
+      <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
+      {error && <p role="alert" className="cust-error">{error}</p>}
+      {selected && <TechnicianInspection key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);window.location.reload()}}/>}
       {gates.map(g => (
         <div key={g.id} className="tech-gate-row">
           <DoorOpen size={18}/>
@@ -138,6 +146,7 @@ function GatesSection({companyId}: {companyId: string}) {
             <strong>{g.code} · {g.description}</strong>
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
+          <button type="button" disabled={!!busy} onClick={()=>startGate({id:g.id,code:g.code})} style={{padding:'10px 14px',borderRadius:9,background:'#c60020',color:'#fff',border:0,fontWeight:700}}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
           </span>
@@ -153,7 +162,7 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
     {key: 'orders', label: 'Mis órdenes', icon: CalendarDays},
-    {key: 'gates',  label: 'Portones',    icon: DoorOpen},
+    {key: 'gates',  label: 'Iniciar mantenimiento',    icon: DoorOpen},
   ];
 
   return (
