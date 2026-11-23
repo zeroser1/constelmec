@@ -106,6 +106,13 @@ begin
       using errcode = '42501';
   end if;
 
+  -- Lock the assignment row early (if it exists) to serialize with concurrent assigns.
+  -- admin_assign_order_technician also takes this lock; whichever wins commits first,
+  -- the loser then re-reads the updated active flag.
+  perform id from public.technician_company_assignments
+  where technician_id = p_technician_id and company_id = p_company_id
+  for update;
+
   -- Disabling: status-aware cascade.
   if not p_active then
     -- Block if any active assignment is on an in-progress order.
@@ -154,7 +161,7 @@ begin
     jsonb_build_object(
       'technician_id', p_technician_id,
       'company_id',    p_company_id,
-      'cross_company', v_tech_company <> p_company_id
+      'cross_company', (v_tech_company is null or v_tech_company <> p_company_id)
     ),
     gen_random_uuid());
 end;
@@ -184,10 +191,13 @@ begin
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
     raise exception 'permission denied' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from public.technician_company_assignments
-    where technician_id = p_technician_id and company_id = p_company_id and active
-  ) then
+  -- Lock the company assignment row to prevent concurrent disable-assign races.
+  -- Serializes with admin_set_technician_company: whichever function acquires the lock first
+  -- commits before the other sees the updated active flag.
+  perform id from public.technician_company_assignments
+  where technician_id = p_technician_id and company_id = p_company_id and active
+  for update;
+  if not found then
     raise exception 'technician is not enabled for this company' using errcode = 'P0002';
   end if;
   if not exists (
@@ -196,8 +206,13 @@ begin
   ) then
     raise exception 'service order not found in this company' using errcode = 'P0002';
   end if;
-  -- Guard: reject duplicate active assignment before the partial UNIQUE fires with a raw 23505.
-  -- Inactive rows (history) are allowed; re-assignment means inserting a new active row.
+  if not exists (
+    select 1 from public.technician_profiles
+    where id = p_technician_id and active
+  ) then
+    raise exception 'technician profile is not active' using errcode = 'P0002';
+  end if;
+  -- Guard: reject duplicate active assignment; ON CONFLICT below is the concurrent safety net.
   if exists (
     select 1 from public.service_order_technicians
     where service_order_id = p_order_id
@@ -218,10 +233,17 @@ begin
       'this order already has an active lead technician; remove the existing lead first'
       using errcode = 'P0001';
   end if;
+  -- ON CONFLICT ... DO NOTHING is the concurrent safety net: if two transactions slip through
+  -- the application guard simultaneously, one gets NULL back (not a raw 23505).
   insert into public.service_order_technicians
     (service_order_id, technician_id, company_id, role)
   values (p_order_id, p_technician_id, p_company_id, p_role)
+  on conflict (service_order_id, technician_id) where active = true do nothing
   returning id into v_id;
+  if v_id is null then
+    raise exception 'technician is already actively assigned to this order'
+      using errcode = 'P0001';
+  end if;
   insert into public.audit_events (company_id, actor_user_id, event_type, event_payload, idempotency_key)
   values (p_company_id, auth.uid(), 'order_technician_assigned',
     jsonb_build_object(

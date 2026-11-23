@@ -63,7 +63,7 @@ DO $$
 DECLARE v_co_a uuid;
 BEGIN
   SELECT co_a INTO v_co_a FROM _t009_ids LIMIT 1;
-  INSERT INTO public.company_members (company_id, user_id, role)
+  INSERT INTO public.memberships (company_id, user_id, role)
   VALUES (v_co_a, '00000000-0000-0000-0000-000000000098', 'admin')
   ON CONFLICT DO NOTHING;
 END;
@@ -219,7 +219,7 @@ BEGIN
   SELECT active INTO v_active
   FROM public.technician_company_assignments
   WHERE company_id = v_co_a AND technician_id = v_tech_b;
-  IF v_active IS NOT DISTINCT FROM false THEN
+  IF v_active IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'TEST 2b FAIL: assignment not active after platform admin cross-company enable';
   END IF;
   RAISE NOTICE 'TEST 2b PASS: platform admin cross-company enable succeeded';
