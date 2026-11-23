@@ -1,3 +1,4 @@
+import LiveInspections from './LiveInspections';
 import {useState} from 'react';
 import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,Send,ShieldAlert,Wrench} from 'lucide-react';
 import {useGateObservations,useObservationMutations,useRealGates,useVisits,useCompanyServiceOrders} from './hooks/useRealData';
@@ -165,6 +166,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
           {stateLabel[selectedGate.operational_state] ?? selectedGate.operational_state}
         </span>
       </div>
+      <LiveInspections role="customer" companyId={companyId}/>
       <GateDetailPanel gate={selectedGate} companyId={companyId} userId={userId}/>
     </div>
   );
@@ -173,6 +175,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
     <div className="cust-shell">
       <div className="cust-company"><DoorOpen size={20}/><span>{companyName}</span></div>
       <h1 className="cust-title">Mis portones</h1>
+      <LiveInspections role="customer" companyId={companyId}/>
       {gates.length === 0 ? (
         <p className="cust-empty">No hay portones registrados para esta empresa.</p>
       ) : gates.map(g => (
