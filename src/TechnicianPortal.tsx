@@ -38,6 +38,7 @@ function dayKey(iso: string) {
 
 function OrderCard({item}: {item: TechAssignedOrder}) {
   const [inspect,setInspect]=useState(false);
+  const [showHistory,setShowHistory]=useState(false);
   const o = item.service_orders;
   if (!o) return null;
   return (
@@ -56,7 +57,9 @@ function OrderCard({item}: {item: TechAssignedOrder}) {
       </div>
       {o.notes && <p className="tech-order-notes">{o.notes}</p>}
       {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
-      {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado · Registro conservado en el historial.</p>}
+      {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
+      {o.gate_id && <button type="button" onClick={()=>setShowHistory(v=>!v)} style={{marginTop:10,padding:12,borderRadius:9,border:'1px solid #cbd5e1',background:'white'}}>{showHistory?'Cerrar historial':'Ver historial del portón'}</button>}
+      {showHistory && o.gate_id && <GateHistory gateId={o.gate_id}/>}
       {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onDone={()=>{setInspect(false);window.location.reload()}}/>}
     </div>
   );
@@ -119,7 +122,6 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
             .sort((a, b) =>
               (a.service_orders?.scheduled_start ?? '').localeCompare(b.service_orders?.scheduled_start ?? ''))
             .map(item => <OrderCard key={item.id} item={item}/>)}
-          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
         </div>
       ))}
     </>
@@ -128,10 +130,11 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
 
 function GatesSection({companyId}: {companyId: string}) {
   const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
+  const [pendingGate,setPendingGate]=useState<{id:string;code:string}|null>(null);
   const [historyGate,setHistoryGate]=useState<string|null>(null);
   const [busy,setBusy]=useState<string|null>(null);
   const [error,setError]=useState('');
-  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;setSelected({id:data as string,code:gate.code});}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
+  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
   const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',out_of_service:'Fuera de servicio'};
   const stateClass: Record<string,string> = {operational:'operational',with_observations:'in_progress',out_of_service:'unassigned'};
@@ -142,6 +145,7 @@ function GatesSection({companyId}: {companyId: string}) {
     <div className="tech-gates-list">
       <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
+      {pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
       {selected && <TechnicianInspection key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);window.location.reload()}}/>}
       {gates.map(g => (
         <div key={g.id} className="tech-gate-row tech-gate-row--action">
@@ -151,7 +155,8 @@ function GatesSection({companyId}: {companyId: string}) {
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
           <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
-          <button className="tech-gate-start" type="button" disabled={!!busy} onClick={()=>startGate({id:g.id,code:g.code})}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
+          <button className="tech-gate-start" type="button" disabled={!!busy} onClick={()=>setPendingGate({id:g.id,code:g.code})}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
+          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
           </span>
