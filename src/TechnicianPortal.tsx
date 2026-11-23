@@ -1,5 +1,6 @@
 import {supabase} from './lib/supabase';
 import TechnicianInspection from './TechnicianInspection';
+import GateHistory from './GateHistory';
 import {useState} from 'react';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
@@ -118,6 +119,7 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
             .sort((a, b) =>
               (a.service_orders?.scheduled_start ?? '').localeCompare(b.service_orders?.scheduled_start ?? ''))
             .map(item => <OrderCard key={item.id} item={item}/>)}
+          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
         </div>
       ))}
     </>
@@ -126,6 +128,7 @@ function OrdersSection({companyId, userId}: {companyId: string; userId: string})
 
 function GatesSection({companyId}: {companyId: string}) {
   const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
+  const [historyGate,setHistoryGate]=useState<string|null>(null);
   const [busy,setBusy]=useState<string|null>(null);
   const [error,setError]=useState('');
   const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;setSelected({id:data as string,code:gate.code});}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
@@ -147,6 +150,7 @@ function GatesSection({companyId}: {companyId: string}) {
             <strong>{g.code} · {g.description}</strong>
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
+          <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
           <button className="tech-gate-start" type="button" disabled={!!busy} onClick={()=>startGate({id:g.id,code:g.code})}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
