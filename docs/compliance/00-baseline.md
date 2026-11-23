@@ -1,6 +1,6 @@
 # Constelmec — Inventario de Controles de Privacidad y Seguridad
 
-**Versión:** 0.1.0  
+**Versión:** 0.1.1  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 0 — Línea de base  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -27,9 +27,9 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 | Auto-refresh de tokens | `src/lib/supabase.ts:17` | ✅ Implementado | `autoRefreshToken: true` |
 | Refresh token rotation | `config.toml:177` | ✅ Implementado | `enable_refresh_token_rotation = true` |
 | Anonymous sign-ins deshabilitados | `config.toml:184` | ✅ Implementado | `enable_anonymous_sign_ins = false` |
-| Email confirmation deshabilitada | `config.toml:234` | ⚠️ Pendiente | `enable_confirmations = false` — usuarios activos sin email verificado |
-| MFA deshabilitado | `config.toml:315–320` | ⚠️ Pendiente | `enroll_enabled = false` para TOTP y phone |
-| Session timeout no configurado | `config.toml:289` | ⚠️ Pendiente | `[auth.sessions]` comentado — sin timebox ni inactivity_timeout |
+| Email confirmation deshabilitada | `config.toml:234` | ⚠️ No verificado en prod | `enable_confirmations = false` en config local — estado del proyecto remoto no verificado |
+| MFA deshabilitado | `config.toml:315–320` | ⚠️ No verificado en prod | `enroll_enabled = false` en config local — estado del proyecto remoto no verificado |
+| Session timeout no configurado | `config.toml:289` | ⚠️ No verificado en prod | `[auth.sessions]` comentado en config local — estado del proyecto remoto no verificado |
 | Contraseña mínima 6 caracteres | `config.toml:188` | ⚠️ Débil | Mínimo recomendado 8; sin `password_requirements` |
 
 ### 2.2 Autorización y control de acceso (RLS)
@@ -94,6 +94,8 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 | Webhooks externos | ❌ No encontrados | Sin edge functions ni llamadas a APIs externas en el código fuente |
 | Analytics / trackers | ❌ Ninguno | Solo Supabase Analytics interno (`backend = "postgres"`) |
 | Terceros (Firebase, Auth0, Cognito) | ❌ Deshabilitados | Todos `enabled = false` |
+| **Supabase (BaaS)** | ⚠️ No verificado | Proveedor de infraestructura — potencial transferencia internacional pendiente de análisis |
+| **Vercel (hosting)** | ⚠️ No verificado | Plataforma de despliegue — potencial transferencia internacional pendiente de análisis |
 
 ---
 
@@ -127,8 +129,8 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 
 | ID | Brecha | Tablas / Archivos afectados | Riesgo |
 |----|--------|---------------------------|--------|
-| GAP-01 | **Sin política de bucket de Storage** — `report_versions.private_storage_path` referencia archivos pero no existe ninguna `[storage.buckets.*]` configurada. Acceso a reportes potencialmente irrestricto. | `config.toml:120–132`, `mig_002:report_versions` | Crítico |
-| GAP-02 | **Sin mecanismo de consentimiento** — no existe flujo de aceptación de Términos y Política de Privacidad. Requerido por Ley 25.326 y principio de consentimiento GDPR. | Toda la app | Crítico |
+| GAP-01 | **Storage bucket — riesgo no verificado** — `report_versions.private_storage_path` referencia archivos pero no existe ninguna `[storage.buckets.*]` configurada en config local. La ausencia de política declarada no prueba acceso irrestricto; pendiente verificar existencia del bucket, configuración real y políticas efectivas en el proyecto remoto. | `config.toml:120–132`, `mig_002:report_versions` | Crítico |
+| GAP-02 | **Sin mecanismo de consentimiento/información** — no existe flujo de aceptación de Términos, Política de Privacidad, ni información de tratamiento al momento de registro. Distinguir: (a) tratamiento de datos, (b) aceptación contractual, (c) consentimiento específico. No todo tratamiento requiere consentimiento expreso — evaluar bases legales alternativas (Art. 5 y excepciones). | Toda la app | Crítico |
 | GAP-03 | **Sin documentos legales** — no existen `politica_privacidad.md`, `terminos_uso.md`, ni textos en la UI. | docs/ | Crítico |
 
 ### 4.2 Brechas Altas (deben resolverse antes del lanzamiento)
@@ -156,13 +158,14 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 | Artículo | Requisito | Estado actual |
 |----------|-----------|---------------|
 | Art. 4 — Calidad del dato | Datos exactos y actualizados | ⚠️ Parcial — no hay flujo de corrección/actualización de datos por el titular |
-| Art. 5 — Consentimiento | Consentimiento previo, informado y libre | ❌ Falta flujo de aceptación |
-| Art. 6 — Cesión de datos | Prohibición de ceder datos sin consentimiento | ✅ No hay integraciones externas activas |
-| Art. 7 — Datos sensibles | Protección reforzada de datos laborales | ⚠️ Parcial — `technician_profiles` sin controles adicionales |
+| Art. 5 — Consentimiento | Consentimiento previo, informado y libre | ❌ Falta flujo de aceptación — verificar excepciones legales aplicables (relación contractual, interés legítimo) |
+| Art. 6 — Deber de información | Informar finalidad, destinatarios y posibilidad de acceso/rectificación al momento de recolección | ❌ No implementado — no hay mecanismo de información en el momento de recolección |
+| Art. 7 — Datos sensibles | Protección reforzada de datos laborales | ⚠️ Parcial — `technician_profiles` sin controles adicionales explícitos |
+| Art. 9 — Deber de secreto | Confidencialidad en el tratamiento | ✅ Parcial — RLS + SECURITY DEFINER limitan acceso; sin política documentada de confidencialidad |
+| Art. 11 — Cesión de datos | Prohibición de ceder datos sin consentimiento informado | ✅ No hay cesiones activas — sin integraciones que compartan datos con terceros |
+| Art. 12 — Transferencia internacional | Restricciones si datos salen del país | ⚠️ No verificado — Supabase y Vercel son proveedores con infraestructura potencialmente fuera de Argentina |
 | Art. 14 — Derecho de acceso | Titular puede solicitar sus datos | ❌ No implementado |
-| Art. 16 — Derecho de rectificación | Titular puede corregir sus datos | ❌ No implementado |
-| Art. 17 — Derecho de supresión | Baja definitiva del titular | ❌ No implementado |
-| Art. 25 — Transferencia internacional | Restricciones si datos salen del país | ✅ Supabase región configurable; sin transferencias activas |
+| Art. 16 — Derecho de rectificación y supresión | Titular puede corregir o solicitar baja definitiva | ❌ No implementado (aplica a rectificación y supresión) |
 
 ---
 
@@ -180,13 +183,18 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 
 ---
 
-## 7. Decisiones requeridas (para ChatGPT)
+## 7. Decisiones resueltas (ChatGPT — 23/11/2026)
 
-1. **GAP-01 — Storage bucket policy:** ¿Cuál es el modelo de acceso esperado para `report_versions`? ¿Solo service_role (procesamiento backend), o también usuarios autenticados de la empresa?
-2. **GAP-02 — Consentimiento:** ¿El consentimiento es por usuario-empresa o por usuario único? (impacta diseño de tabla `consent_records`)
-3. **GAP-04 — Email verification:** ¿Se habilita `enable_confirmations = true` en producción, o se usa una estrategia alternativa (invitación por admin)?
-4. **GAP-05 — Retención de audit_events:** ¿Cuántos años deben conservarse? ¿Existe requerimiento regulatorio específico del cliente?
-5. **GAP-06 — MFA:** ¿Es MFA obligatorio para admins, opcional para técnicos/clientes, o uniformemente opcional?
+| GAP | Decisión |
+|-----|----------|
+| GAP-01 — Storage | Bucket privado. Acceso solo a usuarios autenticados y autorizados por empresa/orden/rol. `service_role` reservado al backend. |
+| GAP-02 — Consentimiento | Identidad de usuario única. Aceptación y contexto jurídico separados por empresa. Distinguir: (a) tratamiento de datos, (b) información de privacidad, (c) aceptación contractual. |
+| GAP-04 — Email | Invitación administrada para usuarios corporativos. Verificación de identidad y correo antes de habilitar acceso. |
+| GAP-05 — Retención | No fijar años arbitrariamente. Proponer matriz por categoría de datos, finalidad y obligación de conservación. |
+| GAP-06 — MFA | Obligatorio para administradores. Recomendado y opcional inicialmente para técnicos/clientes, sujeto a evaluación de riesgos. |
+| GAP-07 — Sesiones | Expiración por inactividad + reautenticación para operaciones sensibles. Valores concretos a definir tras evaluar experiencia operativa de técnicos en campo. |
+
+*Decisiones de diseño para avanzar — no autorizaciones de despliegue en producción.*
 
 ---
 
