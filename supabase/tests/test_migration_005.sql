@@ -45,6 +45,20 @@ INSERT INTO app_private.platform_admins (user_id, granted_by)
 VALUES ('00000000-0000-0000-0000-000000000099', 'test_suite')
 ON CONFLICT (user_id) DO NOTHING;
 
+-- Synthetic operator member (non-admin) for RLS isolation tests in GROUP 2
+INSERT INTO auth.users (
+  id, email, email_confirmed_at, created_at, updated_at,
+  aud, role, raw_app_meta_data, raw_user_meta_data, encrypted_password
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000098',
+  '_test_operator@constelmec.test',
+  now(), now(), now(),
+  'authenticated', 'authenticated',
+  '{"provider":"email","providers":["email"]}', '{}', ''
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Make auth.uid() return the synthetic admin UUID for the rest of this transaction.
 SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000099","aud":"authenticated"}';
 SET LOCAL "request.jwt.aud" = 'authenticated';
@@ -71,6 +85,18 @@ $$;
 
 RESET ROLE;
 SET LOCAL "request.jwt.claims" = '';
+
+-- SETUP (service role): insert an operator membership for the inactive-company RLS test
+DO $$
+DECLARE v_id uuid;
+BEGIN
+  SELECT company_id INTO v_id FROM _test_ids LIMIT 1;
+  INSERT INTO public.memberships (company_id, user_id, role, active)
+  VALUES (v_id, '00000000-0000-0000-0000-000000000098'::uuid, 'operator', true)
+  ON CONFLICT (user_id, company_id) DO NOTHING;
+  RAISE NOTICE 'SETUP: operator member inserted for RLS test';
+END;
+$$;
 
 -- ══════════════════════════════════════════════════════════════════
 -- GROUP 1: EXECUTE permission — anon is blocked before any logic runs
@@ -128,11 +154,12 @@ $$;
 DO $$ BEGIN RAISE NOTICE 'TEST 1d SKIP: requires non-admin user JWT — use Policies Tester'; END $$;
 
 -- ══════════════════════════════════════════════════════════════════
--- GROUP 2: Deactivated company blocks RLS (data layer, service role)
+-- GROUP 2: Deactivated company blocks RLS
 -- ══════════════════════════════════════════════════════════════════
--- Note: service role bypasses RLS so we verify the DATA state only.
--- To verify the RLS block from a user perspective, use Policies Tester
--- with the member user's JWT and query memberships/facilities/gates.
+-- TEST 2a: data-layer check (service role, direct UPDATE)
+-- TEST 2b: has_membership returns false when uid = null
+-- TEST 2b+: RLS enforced for a real authenticated member with an inactive company
+-- For facilities/gates blocking, use Policies Tester with member JWT.
 
 -- Deactivate the test company
 DO $$
@@ -161,6 +188,38 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- TEST 2b+: RLS blocks an authenticated member from accessing inactive company data.
+-- Uses a real non-admin JWT (uid = 00000000-0000-0000-0000-000000000098, operator member).
+SET LOCAL "request.jwt.claims" = '{"sub":"00000000-0000-0000-0000-000000000098","aud":"authenticated"}';
+SET LOCAL "request.jwt.aud" = 'authenticated';
+SET LOCAL ROLE authenticated;
+
+DO $$
+DECLARE v_id uuid; v_count int;
+BEGIN
+  SELECT company_id INTO v_id FROM _test_ids LIMIT 1;
+  -- memberships_read policy: user_id = auth.uid() AND EXISTS(active company)
+  -- → 0 rows when company is inactive
+  SELECT COUNT(*) INTO v_count FROM public.memberships WHERE company_id = v_id;
+  IF v_count > 0 THEN
+    RAISE EXCEPTION 'TEST 2b+ FAIL: member sees % membership rows for inactive company', v_count
+      USING ERRCODE = 'XX000';
+  END IF;
+  RAISE NOTICE 'TEST 2b+ PASS: memberships_read RLS blocks member on inactive company';
+  -- companies_read policy: (active AND has_membership(id))
+  -- → 0 rows when company is inactive
+  SELECT COUNT(*) INTO v_count FROM public.companies WHERE id = v_id;
+  IF v_count > 0 THEN
+    RAISE EXCEPTION 'TEST 2b+(ii) FAIL: member sees % company rows for inactive company', v_count
+      USING ERRCODE = 'XX000';
+  END IF;
+  RAISE NOTICE 'TEST 2b+(ii) PASS: companies_read RLS blocks member on inactive company';
+END;
+$$;
+
+RESET ROLE;
+SET LOCAL "request.jwt.claims" = '';
 
 -- Reactivate for subsequent groups
 DO $$
@@ -281,7 +340,7 @@ BEGIN
     null, null, null, null, null, null, null,
     '2000-01-01 00:00:00+00'::timestamptz
   );
-  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001';
+  RAISE EXCEPTION 'TEST 4b FAIL: should have raised P0001' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4b PASS: stale timestamp rejected (P0001 — concurrent edit conflict)';
@@ -316,7 +375,7 @@ BEGIN
   PERFORM public.admin_update_company(v_id, 'Nombre A', null, null, null, null, null, null, null, v_ts_before);
   -- Update 2 — uses the stale timestamp from before update 1
   PERFORM public.admin_update_company(v_id, 'Nombre B', null, null, null, null, null, null, null, v_ts_before);
-  RAISE EXCEPTION 'TEST 4d FAIL: second update with stale ts should have been rejected';
+  RAISE EXCEPTION 'TEST 4d FAIL: second update with stale ts should have been rejected' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN SQLSTATE 'P0001' THEN
     RAISE NOTICE 'TEST 4d PASS: stale ts rejected after concurrent edit (P0001)';
@@ -374,17 +433,26 @@ END;
 $$;
 
 -- TEST 5c: audit_events are immutable (trigger blocks all updates)
+-- RESET ROLE first: authenticated has UPDATE revoked on audit_events (migration_001),
+-- so Postgres would raise 42501 before the trigger fires. Service_role retains
+-- the privilege and BEFORE triggers still fire — this correctly tests audit_immutable().
+RESET ROLE;
+
 DO $$
 DECLARE v_id uuid;
 BEGIN
   SELECT company_id INTO v_id FROM _test_ids LIMIT 1;
-  -- No LIMIT clause — PostgreSQL UPDATE does not support LIMIT
   UPDATE public.audit_events SET event_type = 'tampered'
   WHERE company_id = v_id;
-  RAISE EXCEPTION 'TEST 5c FAIL: update on audit_events should have been blocked';
+  RAISE EXCEPTION 'TEST 5c FAIL: update on audit_events should have been blocked' USING ERRCODE = 'XX000';
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE NOTICE 'TEST 5c PASS: audit_events blocked update (% — %)', SQLSTATE, SQLERRM;
+    IF SQLERRM LIKE '%Audit events are append-only%' THEN
+      RAISE NOTICE 'TEST 5c PASS: audit_events blocked update (%)', SQLSTATE;
+    ELSE
+      RAISE EXCEPTION 'TEST 5c FAIL: got unexpected error % — %', SQLSTATE, SQLERRM
+        USING ERRCODE = 'XX000';
+    END IF;
 END;
 $$;
 
