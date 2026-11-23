@@ -800,3 +800,88 @@ export function useMyAssignedOrders(companyId: string | undefined, techProfileId
     },
   });
 }
+
+// ── Service order creation (migration 015) ──────────────────────────────────
+
+export type ServiceOrderTechInput = {
+  technicianId: string;
+  role: OrderTechnicianRole;
+};
+
+export type CreateServiceOrderInput = {
+  companyId: string;
+  facilityId: string;
+  gateId: string;
+  serviceType: string;
+  scheduledStart: string; // ISO string
+  scheduledEnd: string;   // ISO string
+  technicians?: ServiceOrderTechInput[];
+};
+
+export type CreateServiceOrderResult = {
+  orderId: string;
+  assignedTechs: string[];
+  failedTechs: Array<{ technicianId: string; error: string }>;
+  scheduled: boolean;
+};
+
+export function useCreateServiceOrder() {
+  const qc = useQueryClient();
+
+  const createOrder = useMutation({
+    mutationFn: async (input: CreateServiceOrderInput): Promise<CreateServiceOrderResult> => {
+      const idempotencyKey = crypto.randomUUID();
+
+      const { data: newId, error: createError } = await supabase!.rpc('admin_create_service_order', {
+        p_company_id:      input.companyId,
+        p_facility_id:     input.facilityId,
+        p_gate_id:         input.gateId,
+        p_service_type:    input.serviceType,
+        p_scheduled_start: input.scheduledStart,
+        p_scheduled_end:   input.scheduledEnd,
+        p_idempotency_key: idempotencyKey,
+      });
+      if (createError) throw new Error(createError.message);
+      const orderId = newId as string;
+
+      const assignedTechs: string[] = [];
+      const failedTechs: Array<{ technicianId: string; error: string }> = [];
+
+      for (const tech of input.technicians ?? []) {
+        const { error: assignError } = await supabase!.rpc('admin_assign_order_technician', {
+          p_company_id:    input.companyId,
+          p_order_id:      orderId,
+          p_technician_id: tech.technicianId,
+          p_role:          tech.role,
+        });
+        if (assignError) {
+          failedTechs.push({ technicianId: tech.technicianId, error: assignError.message });
+        } else {
+          assignedTechs.push(tech.technicianId);
+        }
+      }
+
+      let scheduled = false;
+      if (assignedTechs.length > 0) {
+        const { error: schedError } = await supabase!.rpc('admin_schedule_service_order', {
+          p_company_id: input.companyId,
+          p_order_id:   orderId,
+        });
+        if (schedError) {
+          failedTechs.push({ technicianId: '__schedule__', error: schedError.message });
+        } else {
+          scheduled = true;
+        }
+      }
+
+      return { orderId, assignedTechs, failedTechs, scheduled };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-data'] });
+      qc.invalidateQueries({ queryKey: ['company-service-orders'] });
+      qc.invalidateQueries({ queryKey: ['my-assigned-orders'] });
+    },
+  });
+
+  return { createOrder };
+}
