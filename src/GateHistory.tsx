@@ -13,10 +13,10 @@ export default function GateHistory({gateId,orderId}:{gateId:string;orderId?:str
  <h3>{orderId?'Registro de esta orden':'Historial de mantenimientos'}</h3>
  {loading?<p>Cargando historial…</p>:error?<p role="alert">{error}</p>:ordered.length===0?<p>{orderId?'No se pudo vincular automáticamente esta orden con una visita histórica. Consultá el historial general del portón.':'Todavía no hay mantenimientos finalizados para este portón.'}</p>:ordered.map(v=>{
  const active=v.controls.filter(c=>c.result==='fault').length;
- const corrected=v.controls.filter(c=>c.original_result==='fault'&&c.result!=='fault').length;
+ const corrected=v.controls.filter(c=>c.result!=='fault'&&(c.original_result==='fault'||c.corrections?.some(x=>x.result==='fault'))).length;
  return <div key={v.id} style={{border:'1px solid #cbd5e1',borderRadius:12,padding:12,marginBottom:10}}>
  <button type="button" onClick={()=>setOpen(open===v.id?null:v.id)} style={{width:'100%',textAlign:'left',background:'white',border:0,padding:8,color:'#14263e',fontSize:15,fontWeight:700,whiteSpace:'normal'}}>
- {fmt(v.date)} · {active?active+' falla(s) vigente(s)':'Sin fallas vigentes'}{corrected?' · '+corrected+' falla(s) corregida(s)':''} · {open===v.id?'Ocultar':'Ver chequeo'}
+ {fmt(v.date)} · {active?active+' '+(active===1?'falla vigente':'fallas vigentes'):'Sin fallas vigentes'}{corrected?' · '+corrected+' '+(corrected===1?'falla corregida':'fallas corregidas'):''} · {open===v.id?'Ocultar':'Ver chequeo'}
  </button>
  <small>Técnico: {v.technician} · {v.controls.length} controles · Visita {v.id.slice(0,8)}{v.order_id?' · Orden '+v.order_id.slice(0,8):''}</small>
  {open===v.id&&<div style={{marginTop:12}}>{v.controls.map(c=><div key={c.key} style={{borderTop:'1px solid #e2e8f0',padding:'10px 4px'}}>
@@ -24,7 +24,7 @@ export default function GateHistory({gateId,orderId}:{gateId:string;orderId?:str
  <div style={{color:c.result==='fault'?'#b91c1c':'#334155'}}>Estado actual: {names[c.result]||c.result}</div>
  {c.original_result!==c.result&&<div>Estado inicial: {names[c.original_result]||c.original_result}</div>}
  {c.original_note&&<p style={{whiteSpace:'pre-wrap',margin:'4px 0'}}>Observación original: {c.original_note}</p>}
- {c.corrections?.length>0&&<div style={{paddingLeft:10,borderLeft:'3px solid #94a3b8'}}><strong>Correcciones registradas</strong>{c.corrections.map((x,i)=><p key={i} style={{whiteSpace:'pre-wrap',margin:'6px 0'}}>{fmt(x.date)} · {names[x.result]||x.result}: {x.reason}</p>)}</div>}
+ {c.corrections?.length>0&&<div style={{paddingLeft:10,borderLeft:'3px solid #94a3b8'}}><strong>Movimientos y observaciones</strong>{c.corrections.map((x,i)=>{const previous=i===0?c.original_result:c.corrections[i-1].result;return <p key={i} style={{whiteSpace:'pre-wrap',margin:'6px 0'}}>{fmt(x.date)} · {previous===x.result?'Observación agregada':(names[previous]||previous)+' → '+(names[x.result]||x.result)}: {x.reason}</p>})}</div>}
  </div>)}</div>}
  </div>})}</section>;
 }
