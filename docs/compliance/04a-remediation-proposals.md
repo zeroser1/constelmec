@@ -1,6 +1,6 @@
 # Constelmec — Fase 4A: Propuestas de Remediación de Seguridad
 
-**Versión:** 1.1.0  
+**Versión:** 1.2.0  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 4A — Seguridad de datos  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -86,55 +86,30 @@ Filtrar el acceso del técnico a ciertos `event_type` no elimina el riesgo: even
 | A — Negar acceso completo a técnicos en `audit_events` | Remover técnicos de la política `audit_read` | Elimina exposición de `event_payload` completamente | Si existe UI de técnico que muestra historial de auditoría, se rompe |
 | B — RPC `tech_get_my_audit_events()` | Función SECURITY DEFINER que retorna (`event_type`, `recorded_at`, `actor_user_id`) SIN `event_payload` para el técnico autenticado | Superficie de datos explícita y controlada | Requiere actualizar `useRealData.ts` si el cliente consulta `audit_events` directamente |
 
-**Recomendación: Opción A + B combinadas.** Remover técnicos de la política RLS y exponer solo la RPC con campos seguros.
+**Decisión (ChatGPT 23/11/2026): solo la restricción. No agregar RPC.**
+
+Razón: `tech_get_my_audit_events()` devuelve eventos de empresa completa, no solo del técnico autenticado. `actor_user_id` expone identificadores de otros usuarios. El portal técnico no tiene UI de historial de auditoría — no hay requerimiento operativo. Si surge uno en el futuro, la consulta debe limitarse a las órdenes asignadas al técnico, no a la empresa completa.
 
 **Propuesta (implementación en mig 012):**
 
 ```sql
--- 1. Remplazar política audit_read: técnicos ya NO tienen acceso a audit_events
-ALTER POLICY audit_read ON public.audit_events
+-- Reemplazar política audit_read: técnicos ya NO tienen acceso a audit_events
+DROP POLICY IF EXISTS audit_read ON public.audit_events;
+
+CREATE POLICY audit_read ON public.audit_events
+  FOR SELECT TO authenticated
   USING (
     app_private.is_platform_admin()
     OR app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
-    -- Técnicos: removidos de esta política
+    -- Técnicos: removidos. Acceso directo a audit_events denegado.
   );
-
--- 2. RPC que expone solo los campos seguros para el técnico
-CREATE OR REPLACE FUNCTION public.tech_get_my_audit_events(
-  p_company_id uuid
-)
-RETURNS TABLE(
-  event_type  text,
-  recorded_at timestamptz,
-  actor_user_id uuid
-  -- Sin event_payload: nunca se expone a técnicos
-)
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-  SELECT event_type, recorded_at, actor_user_id
-  FROM public.audit_events
-  WHERE company_id = p_company_id
-    AND app_private.has_membership(p_company_id, ARRAY['technician']::public.member_role[])
-    AND event_type = ANY(ARRAY[
-      'order_created', 'order_updated', 'order_completed',
-      'gate_qr_issued', 'gate_qr_revoked',
-      'order_technician_assigned', 'order_technician_removed'
-    ]);
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.tech_get_my_audit_events(uuid) FROM public, anon;
-GRANT  EXECUTE ON FUNCTION public.tech_get_my_audit_events(uuid) TO authenticated;
 ```
 
 **Tests requeridos:**
 - Técnico A: `SELECT * FROM audit_events WHERE company_id = A` → 0 filas (política RLS)
 - Técnico A: `SELECT * FROM audit_events WHERE event_type = 'order_created'` → 0 filas
-- Técnico A: llamada a `tech_get_my_audit_events(A)` → filas sin `event_payload`
-- Técnico A: llamada a `tech_get_my_audit_events(B)` → 0 filas (guard has_membership)
 - Admin A: `SELECT * FROM audit_events WHERE company_id = A` → filas completas incluyendo `event_payload`
+- Platform admin: `SELECT * FROM audit_events` → filas de todas las empresas
 
 **Riesgo:** Medio — cambio en RLS policy activa. Verificar que `useRealData.ts` no tiene queries directas a `audit_events` para el rol técnico (ninguna encontrada en el análisis estático — el técnico no tiene UI de auditoría actual). Si existe una, debe migrarse a la RPC.
 
@@ -207,68 +182,77 @@ Consecuencia para pruebas: si `audit_events` está llena, bloqueada o su trigger
 
 **Archivo de migración:** `supabase/migrations/202611230014_service_orders_notes_access.sql`
 
-**Problema:** La política `service_orders_member_read` (mig 010) expone `service_orders.*` a todos los miembros de la empresa — incluyendo clientes (`role='customer'`) — lo que incluye el campo `notes` con potencial información operacional sensible.
+**Problema:** La política `service_orders_member_read` (mig 010) expone `service_orders.*` a todos los miembros de la empresa — incluyendo técnicos y clientes — lo que incluye el campo `notes` con información operacional interna sensible.
 
-**Opciones:**
+**Por qué el enfoque de vista + doble política falló (decisión ChatGPT 23/11/2026):**
 
-| Opción | Descripción | Ventajas | Desventajas |
-|--------|-------------|----------|-------------|
-| A — Crear política separada por rol | Reemplazar `service_orders_member_read` con dos políticas: admins ven todo; técnicos y clientes ven columnas limitadas | No requiere schema changes | PostgreSQL RLS no soporta column-level filtering en policies — requiere vista |
-| B — Crear vista `service_orders_client_view` | Vista sin `notes` para miembros que no son admin | Limpia, explícita | El cliente (TypeScript) debe consultar la vista en lugar de la tabla base |
-| C — Mover `notes` a tabla separada `service_order_notes` | Solo admins leen `service_order_notes` | Separación limpia de privilegios | Breaking change — requiere actualización de queries en `useRealData.ts` |
+La propuesta anterior (vista `service_orders_member_view` + política separada en tabla base para técnicos) tiene una falla fundamental: PostgreSQL combina políticas permisivas con OR. Si existe una política permisiva para técnicos en `service_orders`, los técnicos pueden consultar la tabla base directamente y leer `notes`, ignorando la vista completamente. `security_invoker=true` no ayuda — solo aplica las políticas existentes del usuario sobre la tabla base; si esas políticas permiten el acceso, el acceso ocurre.
 
-**Recomendación: Opción B (vista + reemplazar política base).**
+La solución correcta requiere separación a nivel de schema: notas internas en una tabla con RLS admin-only.
 
-**Por qué UI-side hiding no es una medida de seguridad:**
-
-Ocultar `notes` en React no impide el acceso al dato. Mientras la política `service_orders_member_read` (mig 010) permita a todos los miembros leer `service_orders.*`, cualquier cliente puede consultar `supabase.from('service_orders').select('notes')` directamente y obtener el campo. La UI es transparente para las llamadas API del cliente.
-
-**Por qué la vista requiere también cambiar la política base:**
-
-Una vista PostgreSQL sin `SECURITY DEFINER` usa `SECURITY INVOKER` (el contexto del usuario invocante). Esto significa que las políticas RLS de la tabla base (`service_orders`) se aplican igual cuando el cliente consulta la vista. Si la política `service_orders_member_read` sigue permitiendo que técnicos y clientes lean `service_orders.*`, también pueden leer la misma tabla directamente, ignorando la vista. La vista solo protege si se elimina el acceso no-admin a la tabla base.
+**Decisión: Opción C — tabla separada `service_order_internal_notes`.**
 
 **Propuesta correcta (mig 014):**
 
 ```sql
--- 1. Eliminar la política member_read que da acceso irrestricto a todos los miembros
-DROP POLICY service_orders_member_read ON public.service_orders;
+-- 1. Nueva tabla: solo admins y platform_admin pueden leer
+CREATE TABLE public.service_order_internal_notes (
+  id               uuid primary key default gen_random_uuid(),
+  service_order_id uuid not null references public.service_orders(id),
+  company_id       uuid not null references public.companies(id),
+  content          text not null check(length(trim(content)) between 1 and 5000),
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  UNIQUE(service_order_id)  -- una nota por orden
+);
 
--- 2. Nueva política: solo admins leen la tabla base directamente
-CREATE POLICY service_orders_admin_read ON public.service_orders
+ALTER TABLE public.service_order_internal_notes ENABLE ROW LEVEL SECURITY;
+REVOKE INSERT, UPDATE, DELETE ON public.service_order_internal_notes FROM anon, authenticated;
+GRANT SELECT ON public.service_order_internal_notes TO authenticated;
+
+CREATE POLICY soin_admin_read ON public.service_order_internal_notes
   FOR SELECT TO authenticated
   USING (
-    app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
-    OR app_private.is_platform_admin()
+    app_private.is_platform_admin()
+    OR app_private.has_membership(company_id, ARRAY['admin']::public.member_role[])
   );
 
--- 3. Vista para técnicos y clientes (sin notes)
-CREATE VIEW public.service_orders_member_view
-  WITH (security_invoker = true)   -- RLS del usuario invocante se aplica
-AS
-  SELECT
-    id, company_id, facility_id, gate_id, service_type, status,
-    scheduled_start, scheduled_end, completed_at, next_service_at,
-    created_at, updated_at
-    -- Sin: notes — accesible solo vía tabla base (admin + platform_admin)
-  FROM public.service_orders;
+-- 2. RPC de escritura para administradores
+CREATE OR REPLACE FUNCTION public.admin_set_service_order_note(
+  p_company_id uuid, p_service_order_id uuid, p_content text
+) RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF NOT (app_private.is_platform_admin()
+          OR app_private.has_membership(p_company_id, ARRAY['admin']::public.member_role[])) THEN
+    RAISE EXCEPTION 'permission denied' USING ERRCODE = '42501';
+  END IF;
+  -- upsert o delete según p_content
+END;
+$$;
 
--- 4. Política RLS en la vista para técnicos y clientes
--- (security_invoker = true → has_membership() evalúa auth.uid() del usuario invocante)
-CREATE POLICY service_orders_member_view_read ON public.service_orders
-  FOR SELECT TO authenticated
-  USING (
-    app_private.has_membership(company_id, ARRAY['technician', 'customer']::public.member_role[])
-  );
--- Nota: la vista hereda RLS de la tabla base porque security_invoker=true y la policy
--- es sobre service_orders (no sobre la vista en sí). PostgREST expone la vista si
--- está en el schema public y el rol tiene GRANT SELECT.
+-- 3. Backfill desde service_orders.notes
+INSERT INTO public.service_order_internal_notes (service_order_id, company_id, content)
+SELECT id, company_id, notes FROM public.service_orders
+WHERE notes IS NOT NULL AND trim(notes) <> '';
 
-GRANT SELECT ON public.service_orders_member_view TO authenticated;
+-- 4. Limpiar service_orders.notes
+UPDATE public.service_orders SET notes = NULL WHERE notes IS NOT NULL;
 ```
 
-**Cambio requerido en `useRealData.ts`:** Las consultas del cliente para técnicos y clientes deben cambiar de `supabase.from('service_orders')` a `supabase.from('service_orders_member_view')`. Los admins siguen usando la tabla base.
+**TypeScript changes required (separate deploy):**
+- Admin hooks: añadir query a `service_order_internal_notes` para el campo notes
+- Admin UI: renderizar notes desde `service_order_internal_notes`, no desde `service_orders`
+- `TechnicianPortal.tsx`: remover `{o.notes && <p>...</p>}` — el campo queda NULL
+- Admin: usar `admin_set_service_order_note()` al crear/editar órdenes
 
-**Riesgo:** Alto si la migración al view no se hace junto con la actualización del cliente TypeScript. Requiere que ambos cambios lleguen en el mismo deploy. Recomendar que se implemente como tarea coordinada con actualización del hook `useRealServiceOrders`.
+**Tests requeridos:**
+- Admin A: `SELECT * FROM service_order_internal_notes WHERE company_id = A` → filas con contenido (backfill de service_orders.notes)
+- Tech A: `SELECT * FROM service_order_internal_notes WHERE company_id = A` → 0 filas (RLS admin-only)
+- Tech A: `SELECT notes FROM service_orders WHERE company_id = A` → todas las filas con `notes = NULL`
+- Admin A: llama `admin_set_service_order_note(A, order_A_id, 'Texto')` → upsert correcto
+- Admin B: llama `admin_set_service_order_note(A, order_A_id, 'Evil')` → 42501
+
+**Riesgo:** Medio — el campo `service_orders.notes` queda NULL en producción tras el backfill. Los hooks TypeScript que leen notas del admin deben actualizarse en un deploy posterior. El portal técnico queda sin impacto visual (campo ya no devuelve contenido).
 
 ---
 
@@ -296,6 +280,23 @@ GRANT SELECT ON public.service_orders_member_view TO authenticated;
 
 3. **¿Existen políticas permisivas adicionales?** Supabase crea políticas de Storage por defecto en algunos casos. Una política restrictiva no neutraliza otras políticas permisivas — PostgreSQL aplica `OR` entre políticas del mismo tipo.
 
+**Verificación correcta de políticas (corrección ChatGPT 23/11/2026):**
+
+Para inspeccionar las políticas RLS de `storage.objects` usar `pg_policies`, no `storage.policies`:
+
+```sql
+-- Ver todas las políticas RLS sobre storage.objects
+SELECT schemaname, tablename, policyname, cmd, roles, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'storage' AND tablename = 'objects';
+```
+
+**No ejecutar `DELETE FROM storage.policies`** — no es una tabla de catálogo de políticas RLS de PostgreSQL.
+
+**Sobre políticas dirigidas a `service_role`:**
+
+Las políticas RLS con `TO service_role` no reemplazan los controles de autorización del servidor. `service_role` tiene `BYPASSRLS = true` en Supabase — sus queries ignoran todas las políticas RLS. Las políticas de Storage con `TO service_role` son ignoradas por el motor de Storage, que usa credenciales de service_role directamente. La validación de empresa, reporte y path debe hacerse **en el código servidor** (Edge Function o backend), no delegarse a políticas RLS de Storage.
+
 **Propuesta de implementación segura (mig 015):**
 
 ```sql
@@ -307,40 +308,31 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('reports', 'reports', false)
 ON CONFLICT (id) DO UPDATE SET public = false;
 
--- 2. Revocar todas las políticas permisivas existentes en el bucket
--- (verificar con: SELECT * FROM storage.policies WHERE bucket_id = 'reports')
--- DELETE FROM storage.policies WHERE bucket_id = 'reports'; -- solo si se confirma que son permisivas
+-- 2. Verificar políticas existentes antes de aplicar (no borrar sin confirmar):
+-- SELECT schemaname, tablename, policyname, cmd, roles
+-- FROM pg_policies
+-- WHERE schemaname = 'storage' AND tablename = 'objects';
 
 -- 3. INSERT solo desde service_role (backend server, Edge Function)
 CREATE POLICY "reports_insert_service_role"
 ON storage.objects FOR INSERT
 TO service_role
-WITH CHECK (
-  bucket_id = 'reports'
-  -- El WITH CHECK en service_role también debe verificar el formato del path
-  -- para prevenir paths arbitrarios: path debe comenzar con un uuid válido de company_id
-  -- Ejemplo:
-  -- AND (storage.foldername(name))[1] IN (SELECT id::text FROM public.companies WHERE active)
-);
-
--- Sin políticas INSERT para 'authenticated' en este bucket.
+WITH CHECK (bucket_id = 'reports');
+-- Nota: esta política aplica al rol 'service_role' solo cuando BYPASSRLS = false,
+-- que nunca es el caso en Supabase Cloud. El control real está en el backend.
 
 -- 4. SELECT: solo admins pueden leer archivos de su empresa
 -- PREREQUISITO: la convención de path es {company_id}/{report_id}/{filename}
--- y los uploads SOLO los hace service_role con paths server-generados
 CREATE POLICY "reports_read_admin_only"
 ON storage.objects FOR SELECT
 TO authenticated
 USING (
   bucket_id = 'reports'
   AND app_private.has_membership(
-    (storage.foldername(name))[1]::uuid,  -- primer segmento del path = company_id
+    (storage.foldername(name))[1]::uuid,
     ARRAY['admin']::public.member_role[]
   )
 );
-
--- Sin políticas UPDATE ni DELETE para 'authenticated'.
--- DELETE desde service_role puede agregarse si se requiere borrado de archivos.
 ```
 
 **Verificación requerida antes de aplicar:**
@@ -359,11 +351,11 @@ USING (
 
 | Migración | GAP | Prioridad | Dependencias | Estado |
 |-----------|-----|-----------|-------------|--------|
-| `011_fix_search_path.sql` | GAP-SEC-06 | Baja | Ninguna | Propuesta — no creada |
-| `012_audit_events_tech_filter.sql` | GAP-SEC-01 | Alta | mig_001 + mig_004 | Propuesta — no creada |
-| `013_observations_audit_trigger.sql` | GAP-SEC-02 | Media | mig_010 | Propuesta — no creada |
-| `014_service_orders_notes_access.sql` | GAP-SEC-03 | Media | mig_010 | Propuesta — Fase 4B recomendado |
-| `015_storage_bucket_policy.sql` | GAP-01 | Crítico | Verificación remota primero | Propuesta — bloqueada por verificación |
+| `011_fix_search_path.sql` | GAP-SEC-06 | Baja | Ninguna | **Creada** — no-op defensiva (funciones ya tenían `search_path=''`) |
+| `012_audit_events_tech_filter.sql` | GAP-SEC-01 | Alta | mig_001 + mig_004 | **Creada** — solo restricción RLS, sin RPC |
+| `013_observations_audit_trigger.sql` | GAP-SEC-02 | Media | mig_010 | **Creada** — trigger AFTER INSERT atómico |
+| `014_service_orders_notes_access.sql` | GAP-SEC-03 | Media | mig_010 | **Creada** — tabla separada `service_order_internal_notes` |
+| `015_storage_bucket_policy.sql` | GAP-01 | Crítico | Verificación remota primero | Propuesta — pendiente crear archivo
 
 > **Producción permanece congelada.** Ninguna migración se aplica al proyecto remoto hasta aprobación explícita de ChatGPT tras revisión del set completo 011–015.
 

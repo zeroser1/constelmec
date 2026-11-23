@@ -11,6 +11,53 @@
 --
 -- Requires migrations 001–010 applied.
 -- Expected output: a series of NOTICE lines "TEST Xa PASS: ..."
+--
+-- ══════════════════════════════════════════════════════════════════
+-- FALSE POSITIVE / FALSE FAIL RISK REGISTER
+-- (reviewed 23/11/2026 — ChatGPT Fase 4A directive)
+-- ══════════════════════════════════════════════════════════════════
+--
+-- ENV-1 (environment dependency): These tests require a Supabase-compatible
+--   PostgreSQL environment where the 'authenticated' role and auth.uid() function
+--   exist.  Plain PostgreSQL without the Supabase CLI will fail at "SET LOCAL ROLE
+--   authenticated" with "role does not exist".  Run only via:
+--     supabase db execute --file supabase/tests/test_migration_010.sql
+--   or in the Supabase Cloud SQL Editor with the postgres role.
+--
+-- ENV-2 (superuser for auth.users): Lines 24–40 INSERT into auth.users directly.
+--   This requires the postgres role (Supabase CLI local or Cloud postgres role).
+--   The ON CONFLICT DO NOTHING clauses are safe; they guard against interrupted
+--   prior runs, not concurrency.
+--
+-- GUC-1 (request.jwt.claims carryover after RESET ROLE): SET LOCAL sets a GUC
+--   for the duration of the transaction, not just until RESET ROLE.  After the
+--   RESET ROLE at line 77, request.jwt.claims still holds U99's JWT while the
+--   superuser setup blocks (lines 80–135) execute.  This is harmless: those
+--   blocks use raw DML as superuser (bypassing RLS entirely), not RPCs that
+--   check auth.uid().  Documented here for clarity, not as a risk.
+--
+-- ERRCODE-1 (GROUP 2 — WHEN insufficient_privilege): Tests 2a–2d catch
+--   SQLSTATE 42501 via "WHEN insufficient_privilege THEN".  This works only if
+--   the guarded RPCs raise with USING ERRCODE = '42501'.  Verified: migrations
+--   006, 007, 008, 009 all use 'using errcode = ''42501''' consistently.
+--   If a future RPC uses RAISE EXCEPTION without USING ERRCODE, it defaults to
+--   P0001 — which is caught by WHEN OTHERS and reports "unexpected P0001 FAIL"
+--   (a false fail, not a false pass — the security guard still fired).
+--
+-- BASELINE-1 (TEST 3a — attacker reads own profile): Requires that
+--   technician_profiles.user_id = U97 for the attacker row.  The setup inserts
+--   the profile with user_id = U97 (line 110).  technician_profiles_self_read
+--   policy (mig_010): user_id = auth.uid() → U97 = U97 → TRUE.  1 row expected.
+--   Risk: if mig_010 is NOT applied, the self-read policy does not exist and
+--   TEST 3a would FAIL with "cannot read own profile".  This is correct behavior
+--   (mig_010 must be applied for the test to pass).
+--
+-- BASELINE-2 (TEST 3b — attacker reads own company): companies RLS (mig_005)
+--   allows any active member to read their company row.  The attacker has role=
+--   'technician' in co_a, so has_membership(co_a) = TRUE.  1 row expected.
+--   Risk: same as BASELINE-1 — if mig_005 is not applied, the policy does not
+--   exist and 3b would fail.
+-- ══════════════════════════════════════════════════════════════════
 
 BEGIN;
 
