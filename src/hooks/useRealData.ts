@@ -130,17 +130,18 @@ export function useAdminCompanyMutations() {
   });
 
   const updateCompany = useMutation({
-    mutationFn: async (input: CompanyFormInput & { id: string }): Promise<void> => {
+    mutationFn: async (input: CompanyFormInput & { id: string; expected_updated_at?: string | null }): Promise<void> => {
       const { error } = await supabase!.rpc('admin_update_company', {
-        p_company_id:    input.id,
-        p_name:          input.name,
-        p_legal_name:    input.legal_name  || null,
-        p_tax_id:        input.tax_id      || null,
-        p_contact_name:  input.contact_name  || null,
-        p_contact_email: input.contact_email || null,
-        p_contact_phone: input.contact_phone || null,
-        p_address:       input.address     || null,
-        p_notes:         input.notes       || null,
+        p_company_id:            input.id,
+        p_name:                  input.name,
+        p_legal_name:            input.legal_name  || null,
+        p_tax_id:                input.tax_id      || null,
+        p_contact_name:          input.contact_name  || null,
+        p_contact_email:         input.contact_email || null,
+        p_contact_phone:         input.contact_phone || null,
+        p_address:               input.address     || null,
+        p_notes:                 input.notes       || null,
+        p_expected_updated_at:   input.expected_updated_at ?? null,
       });
       if (error) throw new Error(error.message);
     },

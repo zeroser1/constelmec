@@ -59,7 +59,12 @@ export default function CompanyForm({ initial, onSubmit, onClose }: Props) {
       await onSubmit(form);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar empresa.');
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('concurrent edit conflict')) {
+        setError('Esta empresa fue editada por otro usuario. Cerrá este formulario y volvé a abrirlo para ver los cambios recientes.');
+      } else {
+        setError(msg || 'Error al guardar empresa.');
+      }
     } finally {
       setBusy(false);
     }
