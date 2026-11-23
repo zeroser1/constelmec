@@ -1,6 +1,6 @@
 # Constelmec — Fase 1: Matriz de Cumplimiento Normativo
 
-**Versión:** 0.2.0  
+**Versión:** 0.2.1  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 1 — Análisis normativo detallado  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
@@ -8,7 +8,7 @@
 
 ---
 
-> **⚠️ Nota de despliegue:** Todas las migraciones (001–010) existen como archivos SQL en el repositorio pero **no han sido aplicadas a producción**. Los controles marcados ✅ están implementados en código local/dev únicamente. El estado de producción real es desconocido hasta que las migraciones sean aplicadas con autorización explícita.
+> **⚠️ Nota de despliegue:** La migración 005 está confirmada como aplicada a producción. El estado de las migraciones 006–010 no ha sido verificado en el proyecto remoto — se tratan como no aplicadas hasta confirmación explícita. Los controles marcados ✅ están implementados en código; los correspondientes a migraciones 006–010 requieren verificación en producción antes de poder considerarlos operativos.
 
 ---
 
@@ -34,8 +34,8 @@
 | A-03 | Obligación legal | Consentimiento previo, informado y libre | Art. 5 | ❌ | Sin flujo de aceptación, sin tabla `consent_records`, sin Política de Privacidad ni ToS en UI | GAP-02, GAP-03 | Crítica |
 | A-04 | Obligación legal | Consentimiento para datos laborales sensibles | Art. 5 §2 | ❌ | `technician_profiles` contiene licencia, habilitación para conducir y datos laborales sin consentimiento específico | GAP-02 | Crítica |
 | A-05 | Obligación legal | Prohibición de cesión de datos sin consentimiento | Art. 11 | ✅ | Sin integraciones externas activas; sin exports a terceros en codebase | — | — |
-| A-06 | Obligación legal | Obligación de secreto (confidencialidad) | Art. 9 | ✅ | RLS impone aislamiento por empresa; escrituras solo vía SECURITY DEFINER; `app_private` oculto del Data API | — | — |
-| A-07 | Obligación legal | Protección reforzada de datos laborales sensibles | Art. 7 | ⚠️ | RLS en `technician_profiles` (admin + propio perfil); sin cifrado a nivel de columna ni enmascaramiento adicional | — | Alta |
+| A-06 | Obligación legal | Obligación de secreto (confidencialidad) | Art. 10 | ✅ | RLS impone aislamiento por empresa; escrituras solo vía SECURITY DEFINER; `app_private` oculto del Data API | — | — |
+| A-07 | Obligación legal | Calidad y pertinencia de datos personales laborales (specialty, driving_authorized, license_expires_on) | Art. 4 | ⚠️ | RLS en `technician_profiles` (admin + propio perfil); datos laborales son personales pero no sensibles bajo Art. 7 (que cubre datos raciales, religiosos, sindicales, de salud o vida sexual); sin cifrado a nivel de columna ni enmascaramiento adicional | — | Alta |
 | A-08 | Obligación legal | Medidas de seguridad técnicas y organizativas | Art. 9 | ⚠️ | RLS, audit log inmutable, SECURITY DEFINER, QR sha256 implementados; sin bucket policy, MFA, session timeout, ni email verification | GAP-01, GAP-04, GAP-06, GAP-07 | Crítica |
 | A-09 | Obligación legal | Derecho de acceso del titular a sus datos | Art. 14 | ❌ | Sin endpoint de exportación de datos; sin vista self-service de datos propios | GAP-10 | Alta |
 | A-10 | Obligación legal | Derecho de rectificación | Art. 16 | ❌ | Sin flujo self-service de corrección de datos por el titular | GAP-05 | Alta |

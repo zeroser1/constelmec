@@ -1,10 +1,14 @@
 # Constelmec — Inventario de Controles de Privacidad y Seguridad
 
-**Versión:** 0.1.1  
+**Versión:** 0.1.2  
 **Fecha:** 23/11/2026  
 **Fase:** Fase 0 — Línea de base  
 **Autor:** Auditoría automática (Claude Code — Frente 7)  
 **Alcance:** Migraciones 001–010, `src/lib/supabase.ts`, `supabase/config.toml`
+
+---
+
+> **⚠️ Nota de despliegue:** La migración 005 está confirmada como aplicada a producción. El estado de las migraciones 006–010 no ha sido verificado en el proyecto remoto — se tratan como no aplicadas hasta confirmación explícita.
 
 ---
 
@@ -57,7 +61,7 @@ La evaluación de los 10 archivos de migración y la configuración del cliente 
 | Cobertura de eventos — creación | 001–010 | ✅ Implementado | `*_created` para empresa, instalación, portón, contacto |
 | Cobertura de eventos — ciclo de vida QR | `mig_006` | ✅ Implementado | `gate_qr_issued`, `gate_qr_revoked` |
 | Cobertura de eventos — asignaciones | `mig_008/009` | ✅ Implementado | `order_technician_assigned`, `technician_company_enabled/disabled` |
-| `audit_events` sin política SELECT pública | `mig_001` | ✅ Implementado | No hay política `for select` — solo `service_role` puede leer por defecto |
+| `audit_events` política SELECT restringida a admin/técnico | `mig_001:47` | ✅ Implementado | Política `audit_read`: solo roles `admin` y `technician`; ampliada en mig_004 para `platform_admin` |
 
 ### 2.4 Tokens QR y seguridad de acceso físico
 
