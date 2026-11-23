@@ -13,3 +13,6 @@ playwright-report/
 
 # local ChatGPT bridge (never commit)
 _bridge/
+
+# scratch / throwaway scripts (never commit)
+_scratch/
