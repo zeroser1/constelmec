@@ -96,6 +96,23 @@ alter policy companies_read on public.companies
     or (active and app_private.has_membership(id))
   );
 
+-- 5b. Update memberships_read RLS: platform admin sees all memberships;
+--     regular users only see memberships for ACTIVE companies.
+--     has_membership() already blocks operational access, but without this fix a user
+--     can still query their own membership row for an inactive company, which leaks
+--     the fact that the company exists and that they belonged to it.
+alter policy memberships_read on public.memberships
+  using(
+    app_private.is_platform_admin()
+    or (
+      user_id = (select auth.uid())
+      and exists (
+        select 1 from public.companies c
+        where c.id = company_id and c.active
+      )
+    )
+  );
+
 -- 6. Write RPCs — platform admin only.
 --    Pattern: check is_platform_admin() → raise 42501, validate input, mutate,
 --    record to audit_events (append-only).
@@ -286,10 +303,16 @@ begin
     raise exception 'company not found' using errcode = 'P0002';
   end if;
 
-  -- Optimistic concurrency: if the caller supplied the timestamp they last read,
-  -- reject the update if another user edited the row in between.
-  if p_expected_updated_at is not null
-     and v_old.updated_at is distinct from p_expected_updated_at then
+  -- Null guard: p_expected_updated_at must always be provided.
+  -- DEFAULT NULL in the signature is for compatibility only; passing null explicitly
+  -- would bypass the optimistic lock entirely, so we reject it here.
+  if p_expected_updated_at is null then
+    raise exception 'p_expected_updated_at is required: read updated_at from the company row before calling this function'
+      using errcode = '22023';
+  end if;
+
+  -- Optimistic concurrency: reject the update if another user edited the row in between.
+  if v_old.updated_at is distinct from p_expected_updated_at then
     raise exception 'concurrent edit conflict: company was modified by another user'
       using errcode = 'P0001';
   end if;
