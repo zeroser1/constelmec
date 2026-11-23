@@ -1,4 +1,5 @@
-import LiveInspections from './LiveInspections';
+import {useQuery} from '@tanstack/react-query';
+import {supabase} from './lib/supabase';
 import {useState} from 'react';
 import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,Send,ShieldAlert,Wrench} from 'lucide-react';
 import {useGateObservations,useObservationMutations,useRealGates,useVisits,useCompanyServiceOrders} from './hooks/useRealData';
@@ -34,6 +35,22 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric'});
 }
 
+type CustomerLiveJob={gate_id:string;technician_name:string;last_seen_at:string};
+function useCustomerLiveJobs(companyId:string){
+ return useQuery({queryKey:['customer-live-jobs',companyId],queryFn:async()=>{
+  const {data,error}=await supabase!.rpc('monitor_live_inspections');
+  if(error)throw new Error(error.message);
+  return (data??[]) as CustomerLiveJob[];
+ },refetchInterval:5000,staleTime:3000});
+}
+function CustomerWorkStatus({job}:{job:CustomerLiveJob|undefined}){
+ if(!job)return null;
+ const active=Date.now()-new Date(job.last_seen_at).getTime()<=60000;
+ return <span role="status" style={{display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:13,fontWeight:700,color:active?'#166534':'#92400e',background:active?'#dcfce7':'#fef3c7',padding:'7px 10px',borderRadius:8}}>
+  {active?'● Mantenimiento en curso · Técnico trabajando':'● Mantenimiento en curso · Sin actividad reciente'}
+  {job.technician_name&&<span style={{fontWeight:500}}> · {job.technician_name}</span>}
+ </span>;
+}
 function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: string; userId: string}) {
   const visitsQ    = useVisits(companyId);
   const obsQ       = useGateObservations(companyId, gate.id);
@@ -131,6 +148,8 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
 
 export default function CustomerPortal({companyId, userId, membership}: Props) {
   const gatesQ = useRealGates(companyId);
+  const liveQ = useCustomerLiveJobs(companyId);
+  const activeForGate=(id:string)=>(liveQ.data??[]).find(j=>j.gate_id===id);
   const [selectedGate, setSelectedGate] = useState<RealGate | null>(null);
 
   const companyName = membership.companies?.name ?? 'Empresa';
@@ -166,7 +185,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
           {stateLabel[selectedGate.operational_state] ?? selectedGate.operational_state}
         </span>
       </div>
-      <LiveInspections role="customer" companyId={companyId}/>
+      <CustomerWorkStatus job={activeForGate(selectedGate.id)}/>
       <GateDetailPanel gate={selectedGate} companyId={companyId} userId={userId}/>
     </div>
   );
@@ -184,6 +203,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
           <div className="cust-gate-info">
             <strong>{g.code} · {g.description}</strong>
             <span>{g.facilities?.name ?? 'Sin instalación'}{g.model ? ` · ${g.model}` : ''}</span>
+            <CustomerWorkStatus job={activeForGate(g.id)}/>
           </div>
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
