@@ -3,7 +3,20 @@ import {AlertTriangle,Building2,CalendarDays,ChevronLeft,ChevronRight,Clock3,Har
 import './admin.css';
 export type ServiceOrder={id:string;company_id:string;service_type:string;status:string;scheduled_start:string;scheduled_end:string;completed_at:string|null;next_service_at:string|null;notes:string|null;gates:{code:string;description:string}|null;facilities:{name:string}|null;technician_profiles:{first_name:string;last_name:string}|null};
 export type Technician={id:string;company_id:string;first_name:string;last_name:string;work_phone:string|null;work_email:string|null;specialty:string|null;driving_authorized:boolean;license_expires_on:string|null;active:boolean};
-export type Company={id:string;name:string};
+export type Company={
+  id:string;
+  name:string;
+  legal_name?:string|null;
+  tax_id?:string|null;
+  contact_name?:string|null;
+  contact_email?:string|null;
+  contact_phone?:string|null;
+  address?:string|null;
+  active?:boolean;
+  notes?:string|null;
+  updated_at?:string|null;
+  created_at?:string;
+};
 const dayKey=(date:Date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
 const dateTime=(value:string)=>new Date(value).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});
 const serviceType:Record<string,string>={preventive:'Preventivo',corrective:'Correctivo',installation:'Instalación',emergency:'Emergencia'};

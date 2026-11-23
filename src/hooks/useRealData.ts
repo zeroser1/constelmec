@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Membership, RealGate } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
@@ -93,6 +93,73 @@ export function useRealGates(companyId: string | undefined) {
 }
 
 type AdminData = { companies: Company[]; orders: ServiceOrder[]; technicians: Technician[] };
+
+export type CompanyFormInput = {
+  name: string;
+  legal_name: string;
+  tax_id: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  address: string;
+  notes: string;
+};
+
+// Wraps the three platform-admin write RPCs. Invalidates platform-admin-data on success
+// so the company list refreshes automatically after any mutation.
+export function useAdminCompanyMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['platform-admin-data'] });
+
+  const createCompany = useMutation({
+    mutationFn: async (input: CompanyFormInput): Promise<string> => {
+      const { data, error } = await supabase!.rpc('admin_create_company', {
+        p_name:          input.name,
+        p_legal_name:    input.legal_name  || null,
+        p_tax_id:        input.tax_id      || null,
+        p_contact_name:  input.contact_name  || null,
+        p_contact_email: input.contact_email || null,
+        p_contact_phone: input.contact_phone || null,
+        p_address:       input.address     || null,
+        p_notes:         input.notes       || null,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: invalidate,
+  });
+
+  const updateCompany = useMutation({
+    mutationFn: async (input: CompanyFormInput & { id: string }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_update_company', {
+        p_company_id:    input.id,
+        p_name:          input.name,
+        p_legal_name:    input.legal_name  || null,
+        p_tax_id:        input.tax_id      || null,
+        p_contact_name:  input.contact_name  || null,
+        p_contact_email: input.contact_email || null,
+        p_contact_phone: input.contact_phone || null,
+        p_address:       input.address     || null,
+        p_notes:         input.notes       || null,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: invalidate,
+  });
+
+  const setCompanyActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }): Promise<void> => {
+      const { error } = await supabase!.rpc('admin_set_company_active', {
+        p_company_id: id,
+        p_active:     active,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: invalidate,
+  });
+
+  return { createCompany, updateCompany, setCompanyActive };
+}
 
 // Admin control-center bundle: companies, service orders and technicians across
 // every company the user administers. User-scoped key, fetched in parallel.
