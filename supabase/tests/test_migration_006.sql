@@ -307,7 +307,7 @@ BEGIN
   IF v_token IS NULL THEN
     RAISE EXCEPTION 'TEST 4a FAIL: admin_issue_gate_qr returned null';
   END IF;
-  v_expected_hash := encode(digest(v_token, 'sha256'), 'hex');
+  v_expected_hash := encode(extensions.digest(v_token, 'sha256'), 'hex');
   SELECT token_hash, status INTO v_stored_hash, v_status
   FROM public.gate_qr_codes
   WHERE gate_id = v_gate_id AND status = 'active';
@@ -398,6 +398,26 @@ EXCEPTION
     RAISE NOTICE 'TEST 4e PASS: inactive gate rejects QR issuance (P0002)';
   WHEN OTHERS THEN
     RAISE EXCEPTION 'TEST 4e FAIL: unexpected % — %', SQLSTATE, SQLERRM;
+END;
+$$;
+
+-- TEST 4f: inactive facility blocks QR issuance (new hierarchy check)
+DO $$
+DECLARE v_company_id uuid; v_facility_id uuid; v_gate_id uuid;
+BEGIN
+  SELECT company_id, facility_id, gate_id INTO v_company_id, v_facility_id, v_gate_id FROM _t006 LIMIT 1;
+  -- Reactivate gate (deactivated in TEST 4d) so facility check is reached
+  PERFORM public.admin_set_gate_active(v_gate_id, v_company_id, true);
+  -- Deactivate the facility — gate is active but facility is not
+  PERFORM public.admin_set_facility_active(v_facility_id, v_company_id, false);
+  -- Attempt QR issuance — should fail because facility is inactive
+  PERFORM public.admin_issue_gate_qr(v_gate_id, v_company_id);
+  RAISE EXCEPTION 'TEST 4f FAIL: should have raised P0002 for inactive facility';
+EXCEPTION
+  WHEN SQLSTATE 'P0002' THEN
+    RAISE NOTICE 'TEST 4f PASS: inactive facility blocks QR issuance (P0002)';
+  WHEN OTHERS THEN
+    RAISE EXCEPTION 'TEST 4f FAIL: unexpected % — %', SQLSTATE, SQLERRM;
 END;
 $$;
 

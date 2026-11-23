@@ -106,6 +106,18 @@ begin
   if length(trim(p_name)) > 200 then
     raise exception 'facility name must not exceed 200 characters' using errcode = '22023';
   end if;
+  if p_address is not null and length(trim(p_address)) > 500 then
+    raise exception 'address must not exceed 500 characters' using errcode = '22023';
+  end if;
+  if p_location_notes is not null and length(trim(p_location_notes)) > 1000 then
+    raise exception 'location notes must not exceed 1000 characters' using errcode = '22023';
+  end if;
+  if p_contact_name is not null and length(trim(p_contact_name)) > 200 then
+    raise exception 'contact name must not exceed 200 characters' using errcode = '22023';
+  end if;
+  if p_contact_phone is not null and length(trim(p_contact_phone)) > 50 then
+    raise exception 'contact phone must not exceed 50 characters' using errcode = '22023';
+  end if;
   v_name := trim(p_name);
   insert into public.facilities (company_id, name, address, location_notes, contact_name, contact_phone)
   values (p_company_id, v_name,
@@ -136,7 +148,13 @@ create or replace function public.admin_update_facility(
   p_expected_updated_at timestamptz default null
 ) returns void language plpgsql security definer set search_path=''
 as $$
-declare v_old record; v_name text;
+declare
+  v_old            record;
+  v_name           text;
+  v_address        text;
+  v_location_notes text;
+  v_contact_name   text;
+  v_contact_phone  text;
 begin
   if not (app_private.is_platform_admin() or
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
@@ -147,6 +165,18 @@ begin
   end if;
   if length(trim(p_name)) > 200 then
     raise exception 'facility name must not exceed 200 characters' using errcode = '22023';
+  end if;
+  if p_address is not null and length(trim(p_address)) > 500 then
+    raise exception 'address must not exceed 500 characters' using errcode = '22023';
+  end if;
+  if p_location_notes is not null and length(trim(p_location_notes)) > 1000 then
+    raise exception 'location notes must not exceed 1000 characters' using errcode = '22023';
+  end if;
+  if p_contact_name is not null and length(trim(p_contact_name)) > 200 then
+    raise exception 'contact name must not exceed 200 characters' using errcode = '22023';
+  end if;
+  if p_contact_phone is not null and length(trim(p_contact_phone)) > 50 then
+    raise exception 'contact phone must not exceed 50 characters' using errcode = '22023';
   end if;
   if p_expected_updated_at is null then
     raise exception 'p_expected_updated_at is required' using errcode = '22023';
@@ -160,20 +190,37 @@ begin
     raise exception 'concurrent edit conflict: facility was modified by another user'
       using errcode = 'P0001';
   end if;
-  v_name := trim(p_name);
+  v_name           := trim(p_name);
+  v_address        := nullif(trim(coalesce(p_address,'')),'');
+  v_location_notes := nullif(trim(coalesce(p_location_notes,'')),'');
+  v_contact_name   := nullif(trim(coalesce(p_contact_name,'')),'');
+  v_contact_phone  := nullif(trim(coalesce(p_contact_phone,'')),'');
   update public.facilities set
     name           = v_name,
-    address        = nullif(trim(coalesce(p_address,'')),''),
-    location_notes = nullif(trim(coalesce(p_location_notes,'')),''),
-    contact_name   = nullif(trim(coalesce(p_contact_name,'')),''),
-    contact_phone  = nullif(trim(coalesce(p_contact_phone,'')),'')
+    address        = v_address,
+    location_notes = v_location_notes,
+    contact_name   = v_contact_name,
+    contact_phone  = v_contact_phone
   where id = p_facility_id and company_id = p_company_id;
   insert into public.audit_events (company_id, actor_user_id, event_type, event_payload, idempotency_key)
   values (p_company_id, auth.uid(), 'facility_updated',
     jsonb_build_object(
       'facility_id', p_facility_id,
-      'before', jsonb_build_object('name', v_old.name, 'address', v_old.address),
-      'after',  jsonb_build_object('name', v_name)),
+      'before', jsonb_build_object(
+        'name',           v_old.name,
+        'address',        v_old.address,
+        'location_notes', v_old.location_notes,
+        'contact_name',   v_old.contact_name,
+        'contact_phone',  v_old.contact_phone
+      ),
+      'after', jsonb_build_object(
+        'name',           v_name,
+        'address',        v_address,
+        'location_notes', v_location_notes,
+        'contact_name',   v_contact_name,
+        'contact_phone',  v_contact_phone
+      )
+    ),
     gen_random_uuid());
 end;
 $$;
@@ -242,6 +289,18 @@ begin
   if p_description is null or length(trim(p_description)) < 2 then
     raise exception 'gate description must be at least 2 characters' using errcode = '22023';
   end if;
+  if length(trim(p_description)) > 500 then
+    raise exception 'gate description must not exceed 500 characters' using errcode = '22023';
+  end if;
+  if p_model is not null and length(trim(p_model)) > 200 then
+    raise exception 'gate model must not exceed 200 characters' using errcode = '22023';
+  end if;
+  if p_serial_number is not null and length(trim(p_serial_number)) > 100 then
+    raise exception 'serial number must not exceed 100 characters' using errcode = '22023';
+  end if;
+  if p_location_description is not null and length(trim(p_location_description)) > 500 then
+    raise exception 'location description must not exceed 500 characters' using errcode = '22023';
+  end if;
   insert into public.gates (company_id, facility_id, code, description, model, serial_number, location_description)
   values (p_company_id, p_facility_id,
     trim(p_code), trim(p_description),
@@ -273,7 +332,13 @@ create or replace function public.admin_update_gate(
   p_expected_updated_at  timestamptz                    default null
 ) returns void language plpgsql security definer set search_path=''
 as $$
-declare v_old record;
+declare
+  v_old               record;
+  v_description       text;
+  v_model             text;
+  v_serial_number     text;
+  v_location_desc     text;
+  v_operational_state public.gate_operational_state;
 begin
   if not (app_private.is_platform_admin() or
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
@@ -281,6 +346,18 @@ begin
   end if;
   if p_description is null or length(trim(p_description)) < 2 then
     raise exception 'gate description must be at least 2 characters' using errcode = '22023';
+  end if;
+  if length(trim(p_description)) > 500 then
+    raise exception 'gate description must not exceed 500 characters' using errcode = '22023';
+  end if;
+  if p_model is not null and length(trim(p_model)) > 200 then
+    raise exception 'gate model must not exceed 200 characters' using errcode = '22023';
+  end if;
+  if p_serial_number is not null and length(trim(p_serial_number)) > 100 then
+    raise exception 'serial number must not exceed 100 characters' using errcode = '22023';
+  end if;
+  if p_location_description is not null and length(trim(p_location_description)) > 500 then
+    raise exception 'location description must not exceed 500 characters' using errcode = '22023';
   end if;
   if p_expected_updated_at is null then
     raise exception 'p_expected_updated_at is required' using errcode = '22023';
@@ -294,19 +371,36 @@ begin
     raise exception 'concurrent edit conflict: gate was modified by another user'
       using errcode = 'P0001';
   end if;
+  v_description       := trim(p_description);
+  v_model             := nullif(trim(coalesce(p_model,'')),'');
+  v_serial_number     := nullif(trim(coalesce(p_serial_number,'')),'');
+  v_location_desc     := nullif(trim(coalesce(p_location_description,'')),'');
+  v_operational_state := coalesce(p_operational_state, v_old.operational_state);
   update public.gates set
-    description          = trim(p_description),
-    model                = nullif(trim(coalesce(p_model,'')),''),
-    serial_number        = nullif(trim(coalesce(p_serial_number,'')),''),
-    location_description = nullif(trim(coalesce(p_location_description,'')),''),
-    operational_state    = coalesce(p_operational_state, v_old.operational_state)
+    description          = v_description,
+    model                = v_model,
+    serial_number        = v_serial_number,
+    location_description = v_location_desc,
+    operational_state    = v_operational_state
   where id = p_gate_id and company_id = p_company_id;
   insert into public.audit_events (company_id, gate_id, actor_user_id, event_type, event_payload, idempotency_key)
   values (p_company_id, p_gate_id, auth.uid(), 'gate_updated',
     jsonb_build_object(
-      'before', jsonb_build_object('description', v_old.description,
-                                   'operational_state', v_old.operational_state::text),
-      'after',  jsonb_build_object('description', trim(p_description))),
+      'before', jsonb_build_object(
+        'description',          v_old.description,
+        'model',                v_old.model,
+        'serial_number',        v_old.serial_number,
+        'location_description', v_old.location_description,
+        'operational_state',    v_old.operational_state::text
+      ),
+      'after', jsonb_build_object(
+        'description',          v_description,
+        'model',                v_model,
+        'serial_number',        v_serial_number,
+        'location_description', v_location_desc,
+        'operational_state',    v_operational_state::text
+      )
+    ),
     gen_random_uuid());
 end;
 $$;
@@ -354,30 +448,59 @@ grant  execute on function public.admin_set_gate_active(uuid,uuid,boolean) to au
 -- 6a. Issue a new QR for a gate. Revokes any previous active QR atomically.
 --     Returns the raw token ONCE — the caller must embed it in the QR image.
 --     The raw token is never stored and cannot be recovered from the hash.
+--     SELECT ... FOR UPDATE on the gate row serializes concurrent issuance so
+--     the partial-unique-index constraint is never hit unexpectedly.
+--     Requires the full hierarchy to be active: company → facility → gate.
 create or replace function public.admin_issue_gate_qr(
   p_gate_id    uuid,
   p_company_id uuid
 ) returns text language plpgsql security definer set search_path=''
 as $$
-declare v_token uuid; v_hash text; v_qr_id uuid;
+declare
+  v_token            uuid;
+  v_hash             text;
+  v_qr_id            uuid;
+  v_facility_id      uuid;
+  v_facility_active  boolean;
 begin
   if not (app_private.is_platform_admin() or
           app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
     raise exception 'permission denied' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from public.gates
-    where id = p_gate_id and company_id = p_company_id and active
-  ) then
+
+  -- Lock the gate row to serialize concurrent issuance; also capture facility_id
+  -- so we can validate the facility active state below.
+  select facility_id into v_facility_id
+  from public.gates
+  where id = p_gate_id and company_id = p_company_id and active
+  for update;
+  if not found then
     raise exception 'gate not found or inactive' using errcode = 'P0002';
   end if;
+
+  -- Validate activation hierarchy: also lock the facility row to prevent a
+  -- concurrent admin_set_facility_active(false) from slipping through between
+  -- this check and the gate_qr_codes INSERT (FOR UPDATE serializes against
+  -- admin_set_facility_active which UPDATEs the same row).
+  select active into v_facility_active
+  from public.facilities
+  where id = v_facility_id and company_id = p_company_id
+  for update;
+  if not found or not v_facility_active then
+    raise exception 'facility is inactive — cannot issue QR for this gate'
+      using errcode = 'P0002';
+  end if;
+
   -- Revoke existing active QR for this gate (if any)
   update public.gate_qr_codes
   set status = 'revoked', revoked_at = clock_timestamp()
   where gate_id = p_gate_id and status = 'active';
-  -- Generate new token; store only its sha256 hash
+
+  -- Generate new token; store only its sha256 hash.
+  -- extensions.digest() is required: SET search_path='' means pgcrypto must be
+  -- schema-qualified (pgcrypto is installed in the extensions schema in Supabase).
   v_token := gen_random_uuid();
-  v_hash  := encode(digest(v_token::text, 'sha256'), 'hex');
+  v_hash  := encode(extensions.digest(v_token::text, 'sha256'), 'hex');
   insert into public.gate_qr_codes (company_id, gate_id, token_hash, issued_by)
   values (p_company_id, p_gate_id, v_hash, auth.uid())
   returning id into v_qr_id;
