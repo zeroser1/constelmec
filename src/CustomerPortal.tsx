@@ -1,0 +1,193 @@
+import {useState} from 'react';
+import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,Send,ShieldAlert,Wrench} from 'lucide-react';
+import {useGateObservations,useObservationMutations,useRealGates,useVisits,useCompanyServiceOrders} from './hooks/useRealData';
+import type {RealGate} from './lib/types';
+import type {Membership} from './lib/types';
+
+type Props = {
+  companyId: string;
+  userId: string;
+  membership: Membership;
+};
+
+const stateLabel: Record<string, string> = {
+  operational: 'Operativo',
+  with_observations: 'Con observaciones',
+  out_of_service: 'Fuera de servicio',
+};
+const stateClass: Record<string, string> = {
+  operational: 'operational',
+  with_observations: 'in_progress',
+  out_of_service: 'unassigned',
+};
+const serviceTypeLabel: Record<string, string> = {
+  preventive: 'Preventivo', corrective: 'Correctivo',
+  installation: 'Instalación', emergency: 'Emergencia',
+};
+const statusLabel: Record<string, string> = {
+  unassigned: 'Sin asignar', scheduled: 'Programado', in_progress: 'En curso',
+  completed: 'Finalizado', rescheduled: 'Reprogramado', cancelled: 'Cancelado',
+};
+
+function fmt(iso: string) {
+  return new Date(iso).toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+}
+
+function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: string; userId: string}) {
+  const visitsQ    = useVisits(companyId);
+  const obsQ       = useGateObservations(companyId, gate.id);
+  const ordersQ    = useCompanyServiceOrders(companyId);
+  const {addObservation} = useObservationMutations(companyId);
+  const [body, setBody] = useState('');
+  const [sent, setSent]  = useState(false);
+
+  const gateVisits = (visitsQ.data ?? []).filter(v => v.gate_id === gate.id);
+  const gateObs    = (obsQ.data ?? []);
+  const gateOrders = (ordersQ.data ?? []).filter(o => o.gates?.code === gate.code);
+  const upcoming   = gateOrders.filter(o => !['cancelled','completed'].includes(o.status))
+    .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));
+  const past       = gateOrders.filter(o => o.status === 'completed')
+    .sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start));
+
+  const submit = () => {
+    if (!body.trim()) return;
+    addObservation.mutate({gateId: gate.id, body: body.trim(), authorId: userId}, {
+      onSuccess: () => { setBody(''); setSent(true); setTimeout(() => setSent(false), 3000); },
+    });
+  };
+
+  return (
+    <div className="cust-detail">
+      {/* Upcoming */}
+      <div className="cust-section-head"><Wrench size={16}/>Próximos servicios</div>
+      {upcoming.length === 0 ? (
+        <p className="cust-empty">No hay servicios programados.</p>
+      ) : upcoming.slice(0, 3).map(o => (
+        <div key={o.id} className="cust-order-row">
+          <span className={'adm-status ' + o.status}>{statusLabel[o.status] ?? o.status}</span>
+          <span className="cust-order-type">{serviceTypeLabel[o.service_type] ?? o.service_type}</span>
+          <span className="cust-order-date">{fmt(o.scheduled_start)}</span>
+        </div>
+      ))}
+
+      {/* Visit history */}
+      <div className="cust-section-head"><CheckCircle2 size={16}/>Historial de visitas</div>
+      {visitsQ.isLoading && <p className="cust-empty">Cargando…</p>}
+      {!visitsQ.isLoading && gateVisits.length === 0 && past.length === 0 && (
+        <p className="cust-empty">Sin visitas registradas.</p>
+      )}
+      {past.map(o => (
+        <div key={o.id} className="cust-history-row">
+          <CheckCircle2 size={14} className="cust-icon-ok"/>
+          <div>
+            <strong>{serviceTypeLabel[o.service_type] ?? o.service_type}</strong>
+            <span>{fmt(o.scheduled_start)}{o.technician_profiles ? ` · ${o.technician_profiles.first_name} ${o.technician_profiles.last_name}` : ''}</span>
+          </div>
+        </div>
+      ))}
+      {gateVisits.filter(v => v.status === 'closed').map(v => (
+        <div key={v.id} className="cust-history-row">
+          <CheckCircle2 size={14} className="cust-icon-ok"/>
+          <div>
+            <strong>Visita técnica</strong>
+            <span>{v.closed_at ? fmt(v.closed_at) : fmt(v.created_at)}</span>
+          </div>
+        </div>
+      ))}
+
+      {/* Observations */}
+      {gateObs.length > 0 && <>
+        <div className="cust-section-head"><FileText size={16}/>Observaciones anteriores</div>
+        {gateObs.map(o => (
+          <div key={o.id} className="cust-obs-row">
+            <FileText size={13}/>
+            <div><span className="cust-obs-body">{o.body}</span><span className="cust-obs-date">{fmt(o.created_at)}</span></div>
+          </div>
+        ))}
+      </>}
+
+      {/* Report observation */}
+      <div className="cust-section-head"><AlertTriangle size={16}/>Reportar observación</div>
+      <textarea
+        className="cust-textarea"
+        placeholder="Describí lo que observaste en este portón…"
+        maxLength={2000}
+        value={body}
+        onChange={e => setBody(e.target.value)}
+      />
+      {sent && <p className="cust-sent"><CheckCircle2 size={14}/>Observación enviada.</p>}
+      <button
+        className="cust-send-btn"
+        disabled={!body.trim() || addObservation.isPending}
+        onClick={submit}
+      >
+        <Send size={15}/>{addObservation.isPending ? 'Enviando…' : 'Enviar observación'}
+      </button>
+      <p className="cust-footnote">Una observación no crea automáticamente una orden de trabajo.</p>
+    </div>
+  );
+}
+
+export default function CustomerPortal({companyId, userId, membership}: Props) {
+  const gatesQ = useRealGates(companyId);
+  const [selectedGate, setSelectedGate] = useState<RealGate | null>(null);
+
+  const companyName = membership.companies?.name ?? 'Empresa';
+
+  if (gatesQ.isLoading) return (
+    <div className="cust-shell">
+      <div className="cust-company"><DoorOpen size={20}/><span>{companyName}</span></div>
+      <p className="cust-empty">Cargando portones…</p>
+    </div>
+  );
+
+  if (gatesQ.error) return (
+    <div className="cust-shell">
+      <p className="cust-error"><ShieldAlert size={16}/>{(gatesQ.error as Error).message}</p>
+    </div>
+  );
+
+  const gates = gatesQ.data ?? [];
+
+  if (selectedGate) return (
+    <div className="cust-shell">
+      <div className="cust-company"><DoorOpen size={20}/><span>{companyName}</span></div>
+      <button className="cust-back" onClick={() => setSelectedGate(null)}>
+        <ArrowLeft size={16}/> Volver a portones
+      </button>
+      <div className="cust-gate-head">
+        <div>
+          <div className="cust-gate-code">{selectedGate.code}</div>
+          <h2 className="cust-gate-name">{selectedGate.description}</h2>
+          <p className="cust-gate-loc">{selectedGate.facilities?.name ?? 'Sin instalación'}{selectedGate.model ? ` · ${selectedGate.model}` : ''}</p>
+        </div>
+        <span className={`adm-status ${stateClass[selectedGate.operational_state] ?? ''}`}>
+          {stateLabel[selectedGate.operational_state] ?? selectedGate.operational_state}
+        </span>
+      </div>
+      <GateDetailPanel gate={selectedGate} companyId={companyId} userId={userId}/>
+    </div>
+  );
+
+  return (
+    <div className="cust-shell">
+      <div className="cust-company"><DoorOpen size={20}/><span>{companyName}</span></div>
+      <h1 className="cust-title">Mis portones</h1>
+      {gates.length === 0 ? (
+        <p className="cust-empty">No hay portones registrados para esta empresa.</p>
+      ) : gates.map(g => (
+        <button key={g.id} className="cust-gate-card" onClick={() => setSelectedGate(g)}>
+          <div className="cust-gate-icon"><HardHat size={20}/></div>
+          <div className="cust-gate-info">
+            <strong>{g.code} · {g.description}</strong>
+            <span>{g.facilities?.name ?? 'Sin instalación'}{g.model ? ` · ${g.model}` : ''}</span>
+          </div>
+          <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
+            {stateLabel[g.operational_state] ?? g.operational_state}
+          </span>
+        </button>
+      ))}
+      <p className="cust-footnote">Para reportar una falla urgente, contactá directamente a tu administrador.</p>
+    </div>
+  );
+}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { AdminGate, CompanyContact, ContactCategory, Membership, OrderTechnician, OrderTechnicianRole, RealFacility, RealGate } from '../lib/types';
+import type { AdminGate, CompanyContact, ContactCategory, Membership, OrderTechnician, OrderTechnicianRole, RealFacility, RealGate, RealObservation, RealVisit, TechAssignedOrder } from '../lib/types';
 import type { Company, ServiceOrder, Technician } from '../AdminControl';
 
 export function usePlatformAdmin(userId: string | undefined) {
@@ -678,4 +678,125 @@ export function useOrderTechnicianMutations() {
   });
 
   return { assignTechnician, removeTechnician };
+}
+
+// ── Portal hooks (migrations 001 + 010) ──────────────────────────────────────
+
+// All visits for a company (readable by all membership roles via migration 001).
+export function useVisits(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['visits', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<RealVisit[]> => {
+      const { data, error } = await supabase!
+        .from('visits')
+        .select('id,gate_id,company_id,status,started_at,closed_at,created_at')
+        .eq('company_id', companyId!)
+        .order('created_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return unwrap<RealVisit[]>(data);
+    },
+  });
+}
+
+// Observations for one gate (readable by all membership roles via migration 001).
+export function useGateObservations(companyId: string | undefined, gateId: string | undefined) {
+  return useQuery({
+    queryKey: ['gate-observations', companyId, gateId],
+    enabled: !!companyId && !!gateId && !!supabase,
+    queryFn: async (): Promise<RealObservation[]> => {
+      const { data, error } = await supabase!
+        .from('customer_observations')
+        .select('id,gate_id,company_id,author_user_id,body,created_at')
+        .eq('company_id', companyId!)
+        .eq('gate_id', gateId!)
+        .order('created_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return unwrap<RealObservation[]>(data);
+    },
+  });
+}
+
+// Mutation: submit a customer observation via direct insert (RLS allows all members).
+export function useObservationMutations(companyId: string | undefined) {
+  const qc = useQueryClient();
+  const addObservation = useMutation({
+    mutationFn: async ({ gateId, body, authorId }: { gateId: string; body: string; authorId: string }): Promise<void> => {
+      const { error } = await supabase!.from('customer_observations').insert({
+        company_id: companyId,
+        gate_id: gateId,
+        author_user_id: authorId,
+        body,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['gate-observations', companyId, variables.gateId] });
+    },
+  });
+  return { addObservation };
+}
+
+// All service_orders for a company (needs migration 010: service_orders_member_read).
+// Used by CustomerPortal to show upcoming + past services per gate.
+export function useCompanyServiceOrders(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['company-service-orders', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<ServiceOrder[]> => {
+      const { data, error } = await supabase!
+        .from('service_orders')
+        .select(
+          'id,company_id,service_type,status,scheduled_start,scheduled_end,' +
+          'completed_at,next_service_at,notes,' +
+          'gates(code,description),facilities(name),technician_profiles(first_name,last_name)',
+        )
+        .eq('company_id', companyId!)
+        .order('scheduled_start', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<ServiceOrder[]>(data);
+    },
+  });
+}
+
+// Technician's own profile row (needs migration 010: technician_profiles_self_read).
+export function useMyTechnicianProfile(userId: string | undefined, companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['my-tech-profile', userId, companyId],
+    enabled: !!userId && !!companyId && !!supabase,
+    queryFn: async (): Promise<Technician | null> => {
+      const { data, error } = await supabase!
+        .from('technician_profiles')
+        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
+        .eq('user_id', userId!)
+        .eq('company_id', companyId!)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return unwrap<Technician | null>(data);
+    },
+  });
+}
+
+// Orders assigned to a technician via service_order_technicians.
+// Needs migration 010 (service_orders_member_read) for the embedded service_orders join.
+export function useMyAssignedOrders(companyId: string | undefined, techProfileId: string | undefined) {
+  return useQuery({
+    queryKey: ['my-assigned-orders', companyId, techProfileId],
+    enabled: !!companyId && !!techProfileId && !!supabase,
+    queryFn: async (): Promise<TechAssignedOrder[]> => {
+      const { data, error } = await supabase!
+        .from('service_order_technicians')
+        .select(
+          'id,service_order_id,role,assigned_at,active,' +
+          'service_orders(id,company_id,service_type,status,scheduled_start,scheduled_end,notes,' +
+          'gates(code,description),facilities(name))',
+        )
+        .eq('company_id', companyId!)
+        .eq('technician_id', techProfileId!)
+        .eq('active', true)
+        .order('assigned_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return unwrap<TechAssignedOrder[]>(data);
+    },
+  });
 }

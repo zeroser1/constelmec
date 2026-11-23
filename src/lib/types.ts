@@ -115,3 +115,44 @@ export type CompanyContact = {
   created_at: string | null;
   updated_at: string | null;
 };
+
+// ── Portal types (migration 010) ──────────────────────────────────────────
+
+export type RealVisit = {
+  id: string;
+  gate_id: string;
+  company_id: string;
+  status: string;
+  started_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+};
+
+export type RealObservation = {
+  id: string;
+  gate_id: string;
+  company_id: string;
+  author_user_id: string;
+  body: string;
+  created_at: string;
+};
+
+// Row from service_order_technicians joined to service_orders — used by TechnicianPortal.
+export type TechAssignedOrder = {
+  id: string;
+  service_order_id: string;
+  role: OrderTechnicianRole;
+  assigned_at: string;
+  active: boolean;
+  service_orders: {
+    id: string;
+    company_id: string;
+    service_type: string;
+    status: string;
+    scheduled_start: string;
+    scheduled_end: string;
+    notes: string | null;
+    gates: { code: string; description: string } | null;
+    facilities: { name: string } | null;
+  } | null;
+};
