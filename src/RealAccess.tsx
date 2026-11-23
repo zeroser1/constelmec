@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Eye, EyeOff, LogOut, ShieldAlert } from 'lucide-react';
 import './real-access.css';
+import logo from './assets/logo.png';
 import './portal.css';
 import AdminControl from './AdminControl';
 import PlatformAdminControl from './PlatformAdminControl';
@@ -62,7 +63,7 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
 
   if (loading || (session && (platformAdminQ.isLoading || membershipQ.isLoading))) return <div className="real-shell">Cargando...</div>;
 
-  return <div className="real-shell"><header className="real-header"><strong>CONSTELMEC</strong><span>MAINTENANCE</span></header>
+  return <div className="real-shell"><header className="real-header"><div className="real-brand"><img src={logo} alt="" className="real-brand-logo" /><div className="real-brand-wordmark"><strong>CONSTELMEC</strong><span>MAINTENANCE</span></div></div></header>
   {!session ? <main className="real-panel"><div className="real-eyebrow">ACCESO SEGURO</div><h1>{signupMode ? 'Crear cuenta' : 'Bienvenido'}</h1><p>Ingresá con tu cuenta de mantenimiento.</p>
   <form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></label><label>Contraseña<div style={{ position: 'relative' }}><input type={showPassword ? 'text' : 'password'} minLength={6} autoComplete={signupMode ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} style={{ paddingRight: 52 }} /><button type="button" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPassword} title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShowPassword(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: 0 }}>{showPassword ? <EyeOff size={21} /> : <Eye size={21} />}</button></div></label><button className="real-primary" disabled={busy}>{busy ? 'Procesando...' : signupMode ? 'Registrarme' : 'Iniciar sesión'} <ArrowRight size={18} /></button></form>
   {errorMessage && <p className="real-message" role="status">{errorMessage}</p>}
