@@ -148,6 +148,7 @@ export type TechAssignedOrder = {
     id: string;
     company_id: string;
     service_type: string;
+    gate_id: string;
     status: string;
     scheduled_start: string;
     scheduled_end: string;
