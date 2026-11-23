@@ -94,3 +94,14 @@ html[data-theme=dark] .cust-gate-name,html[data-theme=dark] .tech-no-profile h2{
 html[data-theme=dark] .tech-nav-btn{background:#172536;color:#b0c0d1}
 html[data-theme=dark] .tech-nav-btn.active{background:#2d5080;color:#fff}
 html[data-theme=dark] .tech-order-card--in_progress{border-color:#1f4a2a}
+
+/* Technician on-site action cards: responsive, no squeezed labels. */
+.tech-gate-row--action{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:18px;border-radius:14px}
+.tech-gate-row--action>div{min-width:0;grid-column:2}
+.tech-gate-row--action>div strong{font-size:15px;line-height:1.4;overflow-wrap:normal;word-break:normal}
+.tech-gate-row--action>div span{font-size:13px;line-height:1.4;margin-top:4px}
+.tech-gate-row--action>.adm-status{grid-column:3;grid-row:1;white-space:nowrap;justify-self:end}
+.tech-gate-row--action>.tech-gate-start{grid-column:2 / -1;grid-row:2;justify-self:stretch;min-height:44px;background:#c60020;color:#fff;border:0;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer}
+.tech-gate-row--action>.tech-gate-start:disabled{opacity:.65;cursor:wait}
+.tech-gate-row--action>.tech-gate-start:focus-visible{outline:3px solid #496d9d;outline-offset:3px}
+@media(max-width:600px){.tech-gate-row--action{grid-template-columns:22px minmax(0,1fr);gap:10px 12px;padding:16px}.tech-gate-row--action>svg{grid-column:1;grid-row:1}.tech-gate-row--action>div{grid-column:2;grid-row:1}.tech-gate-row--action>.adm-status{grid-column:2;grid-row:2;justify-self:start}.tech-gate-row--action>.tech-gate-start{grid-column:1/-1;grid-row:3;width:100%}}
