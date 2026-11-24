@@ -41,7 +41,7 @@ function useCustomerLiveJobs(companyId:string){
   const {data,error}=await supabase!.rpc('monitor_live_inspections');
   if(error)throw new Error(error.message);
   return (data??[]) as CustomerLiveJob[];
- },refetchInterval:5000,staleTime:3000});
+ },refetchInterval:30000,refetchIntervalInBackground:false,staleTime:3000});
 }
 function CustomerWorkStatus({job,isLoading,isError}:{job:CustomerLiveJob|undefined;isLoading:boolean;isError:boolean}){
  if(isLoading)return <span role="status" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:13,color:'#64748b',padding:'7px 10px'}}>Verificando actividad…</span>;

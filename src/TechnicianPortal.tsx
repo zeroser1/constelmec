@@ -50,7 +50,7 @@ function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>vo
     let live=true;
     const beat=async()=>{const{error}=await supabase!.rpc('tech_live_heartbeat',{p_order_id:o.id,p_visit_id:activeVisitId});if(error&&live)console.warn('Heartbeat failed:',error.message);};
     void beat();
-    const timer=window.setInterval(()=>{void beat();},15000);
+    const timer=window.setInterval(()=>{void beat();},30000);
     return()=>{live=false;window.clearInterval(timer);};
   },[activeVisitId,inspDone,o?.id]);
   if (!o) return null;

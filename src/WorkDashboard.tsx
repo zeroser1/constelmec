@@ -42,7 +42,8 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
    return(data??[]) as LiveRow[];
   },
   enabled:!!supabase,
-  refetchInterval:5000,
+  refetchInterval:30000,
+  refetchIntervalInBackground:false,
   staleTime:3000,
  });
 
