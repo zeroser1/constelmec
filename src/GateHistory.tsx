@@ -9,6 +9,7 @@ const fmt=(date:string)=>new Date(date).toLocaleString('es-AR',{timeZone:'Americ
 export default function GateHistory({gateId,orderId,companyId}:{gateId:string;orderId?:string;companyId?:string}){
  const [items,setItems]=useState<Visit[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[open,setOpen]=useState<string|null>(null);
  const [visitPhotos,setVisitPhotos]=useState<Record<string,PhotoItem[]>>({});
+ const [visitPhotoErr,setVisitPhotoErr]=useState<Record<string,string>>({});
  const loadedRef=useRef<Set<string>>(new Set());
  useEffect(()=>{let active=true;setLoading(true);void(async()=>{const {data,error}=await supabase!.rpc('gate_inspection_history',{p_gate_id:gateId});if(!active)return;const visits=(data||[]) as Visit[];setItems(visits);setError(error?.message||'');setOpen(orderId?visits.find(v=>v.order_id===orderId)?.id||null:null);setLoading(false)})();return()=>{active=false}},[gateId,orderId]);
  useEffect(()=>{
@@ -16,14 +17,20 @@ export default function GateHistory({gateId,orderId,companyId}:{gateId:string;or
   loadedRef.current.add(open);
   void(async()=>{try{
    const{data}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:open});
-   if(!data||!Array.isArray(data)){setVisitPhotos(p=>({...p,[open]:[]}));return;}
+   if(!data||!Array.isArray(data)){setVisitPhotoErr(pe=>({...pe,[open]:''}));setVisitPhotos(p=>({...p,[open]:[]}));return;}
    const result:PhotoItem[]=[];
+   let failed=0;
    await Promise.all((data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>).map(async ph=>{
     const{data:u}=await supabase!.storage.from(ph.bucket||'maintenance-evidence').createSignedUrl(ph.storage_path,3600);
-    if(u?.signedUrl)result.push({id:ph.id,control_key:ph.control_key,phase:ph.phase,signedUrl:u.signedUrl});
+    if(!u?.signedUrl){failed++;return;}
+    result.push({id:ph.id,control_key:ph.control_key,phase:ph.phase,signedUrl:u.signedUrl});
    }));
+   setVisitPhotoErr(pe=>({...pe,[open]:failed>0?`${failed} foto(s) no pudieron cargarse.`:''}));
    setVisitPhotos(p=>({...p,[open]:result}));
-  }catch{setVisitPhotos(p=>({...p,[open]:[]}));}})();
+  }catch(e){
+   loadedRef.current.delete(open);
+   setVisitPhotoErr(pe=>({...pe,[open]:(e as Error).message||'No se pudieron cargar las fotos.'}));
+  }})();
  },[open,companyId]);
  const ordered=orderId?items.filter(v=>v.order_id===orderId):items;
  return <section style={{padding:'12px 0',minWidth:0,overflowWrap:'anywhere'}} aria-label="Historial del portón">
@@ -36,7 +43,7 @@ export default function GateHistory({gateId,orderId,companyId}:{gateId:string;or
  {fmt(v.date)} · {active?active+' '+(active===1?'falla vigente':'fallas vigentes'):'Sin fallas vigentes'}{corrected?' · '+corrected+' '+(corrected===1?'falla corregida':'fallas corregidas'):''} · {open===v.id?'Ocultar':'Ver chequeo'}
  </button>
  <small>Técnico: {v.technician} · {v.controls.length} controles · Visita {v.id.slice(0,8)}{v.order_id?' · Orden '+v.order_id.slice(0,8):''}</small>
- {open===v.id&&<div style={{marginTop:12}}>{v.controls.map(c=><div key={c.key} style={{borderTop:'1px solid #e2e8f0',padding:'10px 4px'}}>
+ {open===v.id&&<div style={{marginTop:12}}>{visitPhotoErr[v.id]&&<p style={{fontSize:11,color:'#b91c1c',margin:'0 0 8px'}}>{visitPhotoErr[v.id]}</p>}{v.controls.map(c=><div key={c.key} style={{borderTop:'1px solid #e2e8f0',padding:'10px 4px'}}>
  <strong>{c.label}</strong>
  <div style={{color:c.result==='fault'?'#b91c1c':'#334155'}}>Estado actual: {names[c.result]||c.result}</div>
  {c.original_result!==c.result&&<div>Estado inicial: {names[c.original_result]||c.original_result}</div>}
