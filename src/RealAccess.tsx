@@ -16,7 +16,6 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
   const { session, loading, passwordRecovery, setPasswordRecovery } = useAuth();
   const [forgotMode, setForgotMode] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [recoveryDone, setRecoveryDone] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,7 +40,6 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
         await updatePassword(password);
         await signOut();
         setPasswordRecovery(false);
-        setRecoveryDone(true);
         setPassword(''); setConfirmPassword('');
         window.history.replaceState(null, '', window.location.pathname);
         setMessage('Contraseña actualizada. Ya podés iniciar sesión.');
