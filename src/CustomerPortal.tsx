@@ -149,7 +149,7 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
             </span>
             <span className="cust-history-action">{expandedOrderId === o.id ? 'Ocultar informe' : 'Ver informe'}</span>
           </button>
-          {expandedOrderId === o.id && <GateHistory gateId={gate.id} orderId={o.id}/>}
+          {expandedOrderId === o.id && <GateHistory gateId={gate.id} orderId={o.id} companyId={companyId}/>}
         </div>
       ))}
 
