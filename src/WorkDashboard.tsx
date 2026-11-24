@@ -216,7 +216,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
    </>}
 
    <p style={{fontSize:12,color:'#94a3b8',marginTop:16,display:'flex',alignItems:'center',gap:6}}>
-    <Activity size={12}/>Datos en vivo actualizados cada 5 segundos · La señal del técnico se envía cada 15 segundos
+    <Activity size={12}/>Datos en vivo actualizados cada 30 segundos · La señal del técnico se envía cada 30 segundos
    </p>
   </div>
  );

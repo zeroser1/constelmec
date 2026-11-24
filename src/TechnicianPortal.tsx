@@ -157,7 +157,7 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
     let live=true;
     const beat=async()=>{const{error}=await supabase!.rpc('tech_live_heartbeat',{p_order_id:selected.id,p_visit_id:activeVisitId});if(error&&live)console.warn('Heartbeat failed:',error.message);};
     void beat();
-    const timer=window.setInterval(()=>{void beat();},15000);
+    const timer=window.setInterval(()=>{void beat();},30000);
     return()=>{live=false;window.clearInterval(timer);};
   },[activeVisitId,inspDone,selected?.id]);
   const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
