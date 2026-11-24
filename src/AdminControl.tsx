@@ -1,6 +1,7 @@
 import WorkDashboard from './WorkDashboard';
-import {useMemo,useState} from 'react';import AppShell from './AppShell';
-import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,Plus,Users,Wrench,X} from 'lucide-react';
+import {useEffect,useMemo,useState} from 'react';import AppShell from './AppShell';
+import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,Clock3,HardHat,LayoutDashboard,MapPin,MessageSquare,Plus,Users,Wrench,X} from 'lucide-react';
+import {supabase} from './lib/supabase';
 import {useOrderTechnicians,useOrderTechnicianMutations,useTechnicianProfiles,useFacilities,useAdminGates,useCreateServiceOrder} from './hooks/useRealData';
 import type {CreateServiceOrderResult} from './hooks/useRealData';
 import type {OrderTechnicianRole} from './lib/types';
@@ -128,8 +129,66 @@ function NewOrderModal({companies,technicians,defaultCompanyId,defaultDate,onClo
     </div></div>
   );
 }
+type AdminObs={id:string;gate_code:string;gate_desc:string;body:string;author_name:string;created_at:string;reply_count:number;latest_activity_at:string};
+type AdminConvItem={item_type:string;item_id:string;author_role:string;body:string;created_at:string};
+function AdminObservationsSection({companyId}:{companyId:string|undefined}){
+ const [items,setItems]=useState<AdminObs[]|null>(null);
+ const [loading,setLoading]=useState(false);
+ const [err,setErr]=useState('');
+ const [expanded,setExpanded]=useState<string|null>(null);
+ const [conv,setConv]=useState<Record<string,AdminConvItem[]>>({});
+ const [convLoading,setConvLoading]=useState<string|null>(null);
+ const fmtDt=(iso:string)=>new Date(iso).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+ useEffect(()=>{
+  if(!companyId)return;
+  setLoading(true);setErr('');
+  void(async()=>{try{
+   const{data,error}=await supabase!.rpc('admin_list_all_observations',{p_company_id:companyId});
+   if(error)throw new Error(error.message.includes('does not exist')||error.message.includes('no existe')?'Módulo de observaciones en preparación.':error.message);
+   setItems((data??[]) as AdminObs[]);
+  }catch(e){setErr((e as Error).message);}finally{setLoading(false);}})();
+ },[companyId]);
+ const toggleConv=async(id:string)=>{
+  if(expanded===id){setExpanded(null);return;}
+  setExpanded(id);
+  if(conv[id]||!companyId)return;
+  setConvLoading(id);
+  try{
+   const{data,error}=await supabase!.rpc('get_observation_conversation',{p_company_id:companyId,p_observation_id:id});
+   if(error)throw new Error(error.message);
+   setConv(c=>({...c,[id]:(data??[]) as AdminConvItem[]}));
+  }catch{/* silent */}finally{setConvLoading(null);}
+ };
+ const roleLabel=(r:string)=>r==='technician'?'Técnico':r==='admin'?'Admin':'Cliente';
+ if(!companyId)return <p className="adm-empty">Seleccioná una empresa para ver observaciones.</p>;
+ if(loading)return <p className="adm-empty">Cargando observaciones…</p>;
+ if(err)return <p style={{color:'#b91c1c',fontSize:13}}>{err}</p>;
+ if(items&&items.length===0)return <p className="adm-empty">No hay observaciones registradas para esta empresa.</p>;
+ return <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+  {(items??[]).map(o=><div key={o.id} style={{border:'1px solid #d1dbe5',borderRadius:10,padding:'12px 14px',background:'#fff'}}>
+   <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+    <div style={{flex:1}}>
+     <strong style={{fontSize:13,color:'#10263e'}}>{o.gate_code}</strong>
+     <span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{o.gate_desc}</span>
+     <p style={{margin:'4px 0 0',fontSize:13,color:'#334155'}}>{o.body}</p>
+     <p style={{margin:'4px 0 0',fontSize:11,color:'#94a3b8'}}>{o.author_name} · {fmtDt(o.created_at)} · {o.reply_count} {o.reply_count===1?'respuesta':'respuestas'}</p>
+    </div>
+    <button type="button" onClick={()=>void toggleConv(o.id)} style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:4,fontSize:12,color:'#1a5eb8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:7,padding:'6px 10px',cursor:'pointer'}}>
+     <MessageSquare size={14}/>{expanded===o.id?'Ocultar':'Ver hilo'}
+    </button>
+   </div>
+   {expanded===o.id&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #e2e8f0'}}>
+    {convLoading===o.id&&<p style={{fontSize:12,color:'#64748b'}}>Cargando…</p>}
+    {(conv[o.id]??[]).map(it=><div key={it.item_id} style={{marginBottom:8,fontSize:12}}>
+     <strong style={{color:it.author_role==='technician'?'#1d4ed8':it.author_role==='admin'?'#166534':'#64748b'}}>{roleLabel(it.author_role)}</strong>
+     <p style={{margin:'2px 0 0',color:'#334155'}}>{it.body}</p>
+    </div>)}
+   </div>}
+  </div>)}
+ </div>;
+}
 export default function AdminControl({companies,orders,technicians=[],demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
- const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'|'live'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
+ const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'|'live'|'observations'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
  const allCompanies=demoMode?sampleCompanies:companies;const allOrders=demoMode?demo.orders:orders;
  const filtered=useMemo(()=>allOrders.filter(o=>company==='all'||o.company_id===company),[allOrders,company]);
 
@@ -141,12 +200,13 @@ export default function AdminControl({companies,orders,technicians=[],demoMode=f
  const companyName=(id:string)=>allCompanies.find(c=>c.id===id)?.name||'Empresa';
  const cards=[{label:'Servicios hoy',value:todayOrders.length,icon:CalendarDays},{label:'En curso',value:filtered.filter(o=>o.status==='in_progress').length,icon:Wrench},{label:'Próximos 7 días',value:upcoming.filter(o=>(new Date(o.scheduled_start).getTime()-Date.now())<7*86400000).length,icon:Clock3},{label:'Vencidos',value:overdue.length,icon:AlertTriangle}];
  const orderCard=(o:ServiceOrder)=>{const exp=expandedOrder===o.id;return <article className={'adm-order'+(exp?' adm-order--expanded':'')} key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><button className="adm-order-tech-toggle" onClick={()=>setExpandedOrder(exp?null:o.id)}><HardHat size={14}/>{exp?'Ocultar técnicos':(o.technician_profiles?o.technician_profiles.first_name+' '+o.technician_profiles.last_name:'Sin técnico · Ver asignaciones')}<ChevronDown size={12} style={{transform:exp?'rotate(180deg)':'none'}}/></button>{exp&&<OrderTechPanel order={o} demoMode={demoMode} allTechs={technicians}/>}</article>;};
- const useShell=!demoMode&&!!onLogout;const shellNavItems=[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}];const _shell=<div className={"adm-shell"+(useShell||embedded?" adm-shell--embedded":"")}><header className="adm-header"><div className="adm-brand"><span className="adm-brand-mark" aria-hidden="true"/>CONSTELMEC</div><span className="adm-subtitle">CENTRO DE CONTROL</span></header><div className="adm-layout"><nav className="adm-nav" aria-label="Administración">{[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}].map(({key,label,icon:Icon})=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key as typeof section)}><Icon size={19}/>{label}</button>)}</nav><main className="adm-main"><div className="adm-heading"><div><small>OPERACIONES / {section==='overview'?'RESUMEN':section==='calendar'?'CALENDARIO':section==='contacts'?'CONTACTOS':section==='live'?'TRABAJOS':'TÉCNICOS'}</small><h1>{section==='overview'?'Centro de control':section==='calendar'?'Agenda de servicios':section==='contacts'?'Contactos':section==='live'?'Trabajos en curso':'Equipo técnico'}</h1></div>{demoMode&&<span className="adm-demo">DATOS DE DEMOSTRACIÓN</span>}</div>{(section==='overview'||section==='calendar'||section==='live')&&<label className="adm-company"><Building2 size={18}/><span>Empresa</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="all">Todas las empresas</option>{allCompanies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+ const useShell=!demoMode&&!!onLogout;const shellNavItems=[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'observations',label:'Observaciones',icon:MessageSquare},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}];const _shell=<div className={"adm-shell"+(useShell||embedded?" adm-shell--embedded":"")}><header className="adm-header"><div className="adm-brand"><span className="adm-brand-mark" aria-hidden="true"/>CONSTELMEC</div><span className="adm-subtitle">CENTRO DE CONTROL</span></header><div className="adm-layout"><nav className="adm-nav" aria-label="Administración">{[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'observations',label:'Observaciones',icon:MessageSquare},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}].map(({key,label,icon:Icon})=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key as typeof section)}><Icon size={19}/>{label}</button>)}</nav><main className="adm-main"><div className="adm-heading"><div><small>OPERACIONES / {section==='overview'?'RESUMEN':section==='calendar'?'CALENDARIO':section==='contacts'?'CONTACTOS':section==='live'?'TRABAJOS':section==='observations'?'OBSERVACIONES':'TÉCNICOS'}</small><h1>{section==='overview'?'Centro de control':section==='calendar'?'Agenda de servicios':section==='contacts'?'Contactos':section==='live'?'Trabajos en curso':section==='observations'?'Observaciones de clientes':'Equipo técnico'}</h1></div>{demoMode&&<span className="adm-demo">DATOS DE DEMOSTRACIÓN</span>}</div>{(section==='overview'||section==='calendar'||section==='live')&&<label className="adm-company"><Building2 size={18}/><span>Empresa</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="all">Todas las empresas</option>{allCompanies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
  {section==='live'&&!demoMode&&<WorkDashboard orders={filtered} companyId={company==='all'?undefined:company}/>}
  {section==='live'&&demoMode&&<p>El seguimiento en vivo solo está disponible con sesiones reales.</p>}
  {section==='overview'&&<><div className="adm-metrics">{cards.map(({label,value,icon:Icon},i)=><div className="adm-metric" key={label}><div><span>{label}</span><Icon size={19} color={i===3?'#d3273d':'#8193a6'}/></div><strong>{value}</strong></div>)}</div><div className="adm-columns"><section className="adm-card"><div className="adm-card-title"><h2>Servicios de hoy</h2><button onClick={()=>{setSection('calendar');setSelected(today)}}>Ver agenda</button></div>{todayOrders.length?todayOrders.map(orderCard):<p className="adm-empty">No hay servicios programados para hoy.</p>}</section><section className="adm-card"><div className="adm-card-title"><h2>Próximos servicios</h2><span>{upcoming.length} pendientes</span></div>{upcoming.length?upcoming.slice(0,5).map(orderCard):<p className="adm-empty">No hay próximos servicios pendientes.</p>}</section></div>{overdue.length>0&&<section className="adm-card adm-warning"><h2><AlertTriangle size={19}/> Servicios vencidos</h2>{overdue.map(orderCard)}</section>}</>}
  {section==='calendar'&&<div className="adm-columns"><section className="adm-card"><div className="adm-calendar-title"><button aria-label="Mes anterior" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft/></button><h2>{month.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</h2><button aria-label="Mes siguiente" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight/></button></div><div className="adm-calendar">{['L','M','M','J','V','S','D'].map((d,i)=><span className="adm-weekday" key={i}>{d}</span>)}{Array.from({length:start},(_,i)=><span key={'pad'+i}/>)}{Array.from({length:daysInMonth},(_,i)=>{const day=dayKey(new Date(month.getFullYear(),month.getMonth(),i+1));const has=filtered.some(o=>dayKey(new Date(o.scheduled_start))===day);return <button key={day} className={[selected===day?'selected':'',day===today?'today':''].join(' ')} onClick={()=>setSelected(day)} aria-label={day}>{i+1}{has&&<i/>}</button>})}</div></section><section className="adm-card"><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,flexWrap:'wrap',gap:8}}><h2 style={{margin:0}}>{new Date(selected+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</h2>{!demoMode&&<button onClick={()=>setNewOrderOpen(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'#1a5eb8',color:'white',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}><Plus size={14}/>Nueva orden</button>}</div>{chosen.length?chosen.map(orderCard):<p className="adm-empty">No hay servicios para esta fecha.</p>}</section></div>}
  {section==='contacts'&&<ContactManager companies={allCompanies}/>}
  {section==='technicians'&&<TechnicianManager companies={allCompanies}/>}
+ {section==='observations'&&<AdminObservationsSection companyId={company==='all'?undefined:company}/>}
  {newOrderOpen&&!demoMode&&<NewOrderModal companies={allCompanies} technicians={technicians} defaultCompanyId={company} defaultDate={selected} onClose={()=>setNewOrderOpen(false)}/>}<p className="adm-footnote">{demoMode?'Información ficticia: las acciones no modifican Supabase.':'Datos reales de Supabase.'}</p></main></div></div>;return useShell?<AppShell navItems={shellNavItems} activeSection={section} onNavigate={k=>setSection(k as typeof section)} brand="Centro de Control" userEmail={email??''} onLogout={onLogout!}>{_shell}</AppShell>:_shell;
 }

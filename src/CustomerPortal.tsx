@@ -1,11 +1,41 @@
 import {useQuery} from '@tanstack/react-query';
 import GateHistory from './GateHistory';
 import {supabase} from './lib/supabase';
-import {useState} from 'react';
-import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,Send,ShieldAlert,Wrench} from 'lucide-react';
+import {useEffect,useState} from 'react';
+import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,MessageCircle,Send,ShieldAlert,Wrench} from 'lucide-react';
 import {useGateObservations,useObservationMutations,useRealGates,useVisits,useCompanyServiceOrders} from './hooks/useRealData';
 import type {RealGate} from './lib/types';
 import type {Membership} from './lib/types';
+
+type ConvItem={item_type:string;item_id:string;author_role:string;body:string;created_at:string};
+function ObsConversation({companyId,obsId,onClose}:{companyId:string;obsId:string;onClose:()=>void}){
+ const [items,setItems]=useState<ConvItem[]|null>(null);
+ const [loading,setLoading]=useState(true);
+ const [err,setErr]=useState('');
+ useEffect(()=>{
+  setLoading(true);setErr('');
+  void(async()=>{try{
+   const{data,error}=await supabase!.rpc('get_observation_conversation',{p_company_id:companyId,p_observation_id:obsId});
+   if(error)throw new Error(error.message.includes('does not exist')||error.message.includes('no existe')?'':error.message);
+   setItems((data??[]) as ConvItem[]);
+  }catch(e){const m=(e as Error).message;if(m)setErr(m);}finally{setLoading(false);}})();
+ },[companyId,obsId]);
+ const roleLabel=(r:string)=>r==='technician'?'Técnico':r==='admin'?'Admin':'Cliente';
+ const fmt=(iso:string)=>new Date(iso).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'} as Intl.DateTimeFormatOptions);
+ return <div style={{marginTop:8,paddingLeft:12,borderLeft:'2px solid #cbd5e1'}}>
+  {loading&&<p style={{fontSize:12,color:'#64748b'}}>Cargando respuestas…</p>}
+  {err&&<p style={{fontSize:12,color:'#b91c1c'}}>{err}</p>}
+  {items&&items.length===0&&<p style={{fontSize:12,color:'#64748b'}}>Sin respuestas aún.</p>}
+  {items&&items.map(it=><div key={it.item_id} style={{marginBottom:8,fontSize:12}}>
+   <strong style={{color:it.author_role==='technician'?'#1d4ed8':it.author_role==='admin'?'#166534':'#64748b'}}>{roleLabel(it.author_role)}</strong>
+   <span style={{color:'#94a3b8',marginLeft:6}}>{fmt(it.created_at)}</span>
+   <p style={{margin:'4px 0 0',color:'#334155'}}>{it.body}</p>
+  </div>)}
+  <button type="button" onClick={onClose} style={{fontSize:11,color:'#64748b',background:'none',border:'none',cursor:'pointer',padding:'2px 0'}}>Cerrar</button>
+ </div>;
+}
+
+
 
 type Props = {
   companyId: string;
@@ -64,6 +94,7 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
   const [body, setBody] = useState('');
   const [sent, setSent]  = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [expandedObsId, setExpandedObsId] = useState<string | null>(null);
 
   const gateObs    = (obsQ.data ?? []);
   const gateOrders = (ordersQ.data ?? []).filter(o => o.gates?.code === gate.code);
@@ -120,9 +151,16 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
       {gateObs.length > 0 && <>
         <div className="cust-section-head"><FileText size={16}/>Observaciones anteriores</div>
         {gateObs.map(o => (
-          <div key={o.id} className="cust-obs-row">
-            <FileText size={13}/>
-            <div><span className="cust-obs-body">{o.body}</span><span className="cust-obs-date">{fmt(o.created_at)}</span></div>
+          <div key={o.id} className="cust-obs-row" style={{flexDirection:'column',alignItems:'flex-start',gap:4}}>
+            <div style={{display:'flex',gap:8,alignItems:'flex-start',width:'100%'}}>
+              <FileText size={13} style={{flexShrink:0,marginTop:2}}/>
+              <div style={{flex:1}}><span className="cust-obs-body">{o.body}</span><span className="cust-obs-date">{fmt(o.created_at)}</span></div>
+              <button type="button" onClick={()=>setExpandedObsId(expandedObsId===o.id?null:o.id)}
+                style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:'2px 4px'}}>
+                <MessageCircle size={13}/>{expandedObsId===o.id?'Ocultar':'Ver respuestas'}
+              </button>
+            </div>
+            {expandedObsId===o.id&&<ObsConversation companyId={companyId} obsId={o.id} onClose={()=>setExpandedObsId(null)}/>}
           </div>
         ))}
       </>}

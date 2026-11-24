@@ -3,13 +3,16 @@ import {useQueryClient} from '@tanstack/react-query';
 import {supabase} from './lib/supabase';
 import type {TechAssignedOrder} from './lib/types';
 
+type PhotoState={id:string;path:string;signedUrl?:string;phase:string;status:'uploading'|'confirmed'|'failed'};
+type PhotoSlot={photo_id:string;storage_path:string;bucket:string};
+
 const checks = [
  ['structure','Integridad y estructura'],['guides','Guías y rodillos'],['motor','Motor y transmisión'],
  ['electrical','Tablero eléctrico'],['photocells','Fotocélulas'],['emergency','Parada de emergencia'],
  ['opening','Prueba de apertura'],['closing','Prueba de cierre']
 ] as const;
 type Result='ok'|'fault'|'not_applicable'|'unverifiable';
-export default function TechnicianInspection({orderId,gateCode,onDone,autoStart=false,onVisitStarted,onFinished}:{orderId:string;gateCode:string;onDone:()=>void;autoStart?:boolean;onVisitStarted?:(visitId:string)=>void;onFinished?:()=>void}) {
+export default function TechnicianInspection({orderId,gateCode,companyId,onDone,autoStart=false,onVisitStarted,onFinished}:{orderId:string;gateCode:string;companyId?:string;onDone:()=>void;autoStart?:boolean;onVisitStarted?:(visitId:string)=>void;onFinished?:()=>void}) {
  const queryClient=useQueryClient();
  const autoStartAttempted=useRef(false);
  const [visitId,setVisitId]=useState<string|null>(null);
@@ -24,7 +27,52 @@ export default function TechnicianInspection({orderId,gateCode,onDone,autoStart=
  const [showMissing,setShowMissing]=useState(false);
  const [correction,setCorrection]=useState<{key:string;label:string;result:Result}|null>(null);
  const [reason,setReason]=useState('');
+ const [photos,setPhotos]=useState<Record<string,PhotoState[]>>({});
+ const [photoErr,setPhotoErr]=useState<Record<string,string>>({});
  const draftKey=`constelmec:inspection-draft:${orderId}`;
+ // Load photos when visitId becomes known (backend may not exist yet — degrades silently)
+ useEffect(()=>{
+  if(!visitId||!companyId)return;
+  void(async()=>{try{
+   const{data}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:visitId});
+   if(!data||!Array.isArray(data))return;
+   const grouped:Record<string,PhotoState[]>={};
+   await Promise.all((data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>).map(async p=>{
+    const{data:u}=await supabase!.storage.from(p.bucket||'maintenance-evidence').createSignedUrl(p.storage_path,3600);
+    const k=p.control_key;if(!grouped[k])grouped[k]=[];
+    grouped[k].push({id:p.id,path:p.storage_path,phase:p.phase,status:'confirmed',signedUrl:u?.signedUrl});
+   }));
+   setPhotos(grouped);
+  }catch{/* backend not ready */}})();
+ },[visitId,companyId]);
+ const uploadPhoto=async(key:string,phase:string,file:File)=>{
+  if(!visitId||!companyId){setPhotoErr(e=>({...e,[key]:'Iniciá la inspección antes de subir fotos.'}));return;}
+  setPhotoErr(e=>({...e,[key]:''}));
+  const tempId='tmp-'+Math.random().toString(36).slice(2);
+  setPhotos(p=>({...p,[key]:[...(p[key]??[]),{id:tempId,path:'',phase,status:'uploading'}]}));
+  try{
+   // Step 1: get secure upload path from RPC
+   const{data:slot,error:slotErr}=await supabase!.rpc('tech_request_maintenance_photo_slot',{
+    p_company_id:companyId,p_order_id:orderId,p_visit_id:visitId,p_control_key:key,p_phase:phase,
+    p_mime_type:file.type,p_file_size_bytes:file.size,p_original_filename:file.name
+   });
+   if(slotErr)throw new Error(slotErr.message.includes('does not exist')||slotErr.message.includes('no existe')?'Función de fotos aún no disponible':slotErr.message);
+   if(!slot)throw new Error('Función de fotos aún no disponible');
+   const{photo_id,storage_path,bucket}=slot as PhotoSlot;
+   // Step 2: upload to storage
+   const{error:upErr}=await supabase!.storage.from(bucket).upload(storage_path,file,{upsert:false});
+   if(upErr)throw new Error(upErr.message);
+   // Step 3: confirm
+   const{error:confErr}=await supabase!.rpc('tech_confirm_maintenance_photo',{p_photo_id:photo_id});
+   if(confErr)throw new Error(confErr.message);
+   // Step 4: signed URL for display
+   const{data:u}=await supabase!.storage.from(bucket).createSignedUrl(storage_path,3600);
+   setPhotos(p=>({...p,[key]:(p[key]??[]).map(ph=>ph.id===tempId?{id:photo_id,path:storage_path,phase,status:'confirmed',signedUrl:u?.signedUrl}:ph)}));
+  }catch(e){
+   setPhotos(p=>({...p,[key]:(p[key]??[]).filter(ph=>ph.id!==tempId)}));
+   setPhotoErr(pe=>({...pe,[key]:(e as Error).message}));
+  }
+ };
  useEffect(()=>{try{const raw=sessionStorage.getItem(draftKey);if(raw){const saved=JSON.parse(raw) as Record<string,string>;setNotes(n=>({...n,...saved}));}}catch{/* unavailable storage */}},[draftKey]);
  useEffect(()=>{let alive=true;void (async()=>{const {data,error}=await supabase!.rpc('tech_get_pilot_progress',{p_order_id:orderId});if(!alive)return;if(error){setError(error.message)}else if(data?.visit_id){setVisitId(data.visit_id);onVisitStarted?.(data.visit_id);const r:Record<string,Result>={};const n:Record<string,string>={};for(const c of data.controls||[]){r[c.key]=c.result;n[c.key]=c.note||''}setResults(r);setNotes({...n,...(()=>{try{return JSON.parse(sessionStorage.getItem(draftKey)||'{}')}catch{return {}}})()});setSavedNotes(n)}setLoading(false)})();return()=>{alive=false}},[orderId]);
 
@@ -54,6 +102,19 @@ export default function TechnicianInspection({orderId,gateCode,onDone,autoStart=
     {(notes[key]||'').length>1000&&<small role="alert" style={{display:'block',color:'#b91c1c'}}>Acortá la observación en {(notes[key]||'').length-1000} {(notes[key]||'').length-1000===1?'carácter':'caracteres'} antes de guardar.</small>}
     {results[key] && notes[key]!==savedNotes[key] && <button type="button" disabled={busy} onClick={()=>save(key,label,results[key])}>Guardar observación</button>}
     {results[key]&&<small style={{display:'block',marginTop:8,color:'#64748b'}}>Estado guardado: {({ok:'Correcto',fault:'Falla',not_applicable:'No aplica',unverifiable:'No verificable'} as Record<Result,string>)[results[key]]}</small>}
+    {visitId&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:8,alignItems:'center'}}>
+     <label style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 11px',borderRadius:8,border:'1px solid #cbd5e1',cursor:busy||finished?'default':'pointer',fontSize:12,color:'#334155',background:'#f8fafc',opacity:busy||finished?0.5:1}}>
+      📷 Foto
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" style={{display:'none'}} disabled={busy||finished}
+       onChange={e=>{const f=e.target.files?.[0];if(f){void uploadPhoto(key,results[key]==='fault'?'fault':'inspection',f);}e.target.value='';}}/>
+     </label>
+     {photoErr[key]&&<small style={{color:'#b91c1c',fontSize:11}}>{photoErr[key]}</small>}
+     {(photos[key]??[]).map(ph=><span key={ph.id} style={{display:'inline-block',width:52,height:52,borderRadius:6,border:'1px solid #cbd5e1',overflow:'hidden',background:'#f1f5f9',verticalAlign:'middle'}}>
+      {ph.status==='uploading'?<span style={{display:'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontSize:11,color:'#64748b'}}>↑</span>
+       :ph.signedUrl?<a href={ph.signedUrl} target="_blank" rel="noopener noreferrer"><img src={ph.signedUrl} alt={ph.phase} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></a>
+       :null}
+     </span>)}
+    </div>}
    </div>)}
    <p>{Object.keys(results).length} de {checks.length} controles guardados.</p>
    {showMissing && (missing.length>0||unsaved.length>0||invalidFaults.length>0) && <div role="alert" style={{background:'#fff7ed',border:'1px solid #fdba74',padding:12,borderRadius:10,marginBottom:12}}><strong>Antes de finalizar:</strong>{missing.length>0&&<p>Completá {missing.length} {missing.length===1?'control pendiente':'controles pendientes'}: {missing.map(([,label])=>label).join(', ')}.</p>}{invalidFaults.length>0&&<p>Describí las fallas de: {invalidFaults.map(([,label])=>label).join(', ')}.</p>}{unsaved.length>0&&<p>Guardá las observaciones de: {unsaved.map(([,label])=>label).join(', ')}.</p>}</div>}

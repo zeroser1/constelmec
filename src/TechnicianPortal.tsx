@@ -3,7 +3,7 @@ import TechnicianInspection from './TechnicianInspection';
 import GateHistory from './GateHistory';
 import {useEffect,useMemo,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
-import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
+import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,MessageCircle,Send,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
 import type {Membership} from './lib/types';
 import type {TechAssignedOrder} from './lib/types';
@@ -14,7 +14,7 @@ type Props = {
   membership: Membership;
 };
 
-type Section = 'orders' | 'gates';
+type Section = 'orders' | 'gates' | 'observations';
 
 const serviceTypeLabel: Record<string, string> = {
   preventive: 'Preventivo', corrective: 'Correctivo',
@@ -37,7 +37,90 @@ function dayKey(iso: string) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>void}) {
+type TechObs={id:string;gate_code:string;gate_desc:string;body:string;author_name:string;created_at:string;reply_count:number;unread_count:number};
+type TechConvItem={item_type:string;item_id:string;author_role:string;body:string;created_at:string};
+function ObservationsInbox({companyId}:{companyId:string}){
+ const [items,setItems]=useState<TechObs[]|null>(null);
+ const [loading,setLoading]=useState(true);
+ const [err,setErr]=useState('');
+ const [expanded,setExpanded]=useState<string|null>(null);
+ const [conv,setConv]=useState<Record<string,TechConvItem[]>>({});
+ const [convLoading,setConvLoading]=useState<string|null>(null);
+ const [reply,setReply]=useState<Record<string,string>>({});
+ const [sending,setSending]=useState<string|null>(null);
+ const [sendErr,setSendErr]=useState<Record<string,string>>({});
+ const fmtDt=(iso:string)=>new Date(iso).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+ const roleLabel=(r:string)=>r==='technician'?'Técnico':r==='admin'?'Admin':'Cliente';
+ useEffect(()=>{
+  setLoading(true);setErr('');
+  void(async()=>{try{
+   const{data,error}=await supabase!.rpc('tech_list_gate_observations',{p_company_id:companyId});
+   if(error)throw new Error(error.message.includes('does not exist')||error.message.includes('no existe')?'Módulo de observaciones en preparación.':error.message);
+   setItems((data??[]) as TechObs[]);
+  }catch(e){setErr((e as Error).message);}finally{setLoading(false);}})();
+ },[companyId]);
+ const toggleConv=async(id:string)=>{
+  if(expanded===id){setExpanded(null);return;}
+  setExpanded(id);
+  if(conv[id])return;
+  setConvLoading(id);
+  try{
+   const{data,error}=await supabase!.rpc('get_observation_conversation',{p_company_id:companyId,p_observation_id:id});
+   if(error)throw new Error(error.message);
+   setConv(c=>({...c,[id]:(data??[]) as TechConvItem[]}));
+  }catch{/* silent */}finally{setConvLoading(null);}
+ };
+ const sendReply=async(obsId:string)=>{
+  const body=(reply[obsId]||'').trim();
+  if(!body)return;
+  setSending(obsId);setSendErr(e=>({...e,[obsId]:''}));
+  try{
+   const{error}=await supabase!.rpc('tech_reply_to_observation',{p_company_id:companyId,p_observation_id:obsId,p_body:body});
+   if(error)throw new Error(error.message.includes('does not exist')||error.message.includes('no existe')?'Función de respuesta en preparación.':error.message);
+   setReply(r=>({...r,[obsId]:''}));
+   // reload conversation
+   const{data:data2}=await supabase!.rpc('get_observation_conversation',{p_company_id:companyId,p_observation_id:obsId});
+   if(data2)setConv(c=>({...c,[obsId]:data2 as TechConvItem[]}));
+  }catch(e){setSendErr(se=>({...se,[obsId]:(e as Error).message}));}finally{setSending(null);}
+ };
+ if(loading)return <p className="cust-empty">Cargando observaciones…</p>;
+ if(err)return <p className="cust-error"><ShieldAlert size={15}/>{err}</p>;
+ if(items&&items.length===0)return <div className="tech-no-profile"><MessageCircle size={34}/><h2>Sin observaciones</h2><p>No hay observaciones pendientes de tus portones asignados.</p></div>;
+ return <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+  {(items??[]).map(o=><div key={o.id} style={{border:'1px solid #d1dbe5',borderRadius:12,padding:'14px 16px',background:'#fff'}}>
+   <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+    <div style={{flex:1}}>
+     <strong style={{fontSize:13,color:'#14263e'}}>{o.gate_code}</strong>
+     <span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{o.gate_desc}</span>
+     {o.unread_count>0&&<span style={{marginLeft:8,background:'#c60020',color:'white',borderRadius:10,fontSize:10,fontWeight:700,padding:'1px 6px'}}>{o.unread_count}</span>}
+     <p style={{margin:'6px 0 0',fontSize:13,color:'#334155'}}>{o.body}</p>
+     <p style={{margin:'4px 0 0',fontSize:11,color:'#94a3b8'}}>{o.author_name} · {fmtDt(o.created_at)} · {o.reply_count} {o.reply_count===1?'respuesta':'respuestas'}</p>
+    </div>
+    <button type="button" onClick={()=>void toggleConv(o.id)} style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:4,fontSize:12,color:'#1a5eb8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:7,padding:'6px 10px',cursor:'pointer'}}>
+     <MessageCircle size={14}/>{expanded===o.id?'Ocultar':'Responder'}
+    </button>
+   </div>
+   {expanded===o.id&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #e2e8f0'}}>
+    {convLoading===o.id&&<p style={{fontSize:12,color:'#64748b'}}>Cargando hilo…</p>}
+    {(conv[o.id]??[]).map(it=><div key={it.item_id} style={{marginBottom:8,fontSize:12,display:'flex',gap:6}}>
+     <strong style={{flexShrink:0,color:it.author_role==='technician'?'#1d4ed8':it.author_role==='admin'?'#166534':'#64748b'}}>{roleLabel(it.author_role)}:</strong>
+     <span style={{color:'#334155'}}>{it.body}</span>
+    </div>)}
+    <div style={{display:'flex',gap:8,marginTop:10,alignItems:'flex-start'}}>
+     <textarea value={reply[o.id]||''} onChange={e=>setReply(r=>({...r,[o.id]:e.target.value}))} rows={2} maxLength={2000}
+       placeholder="Escribí tu respuesta…" style={{flex:1,padding:10,borderRadius:8,border:'1px solid #cbd5e1',fontSize:13,fontFamily:'inherit',resize:'vertical'}}/>
+     <button type="button" disabled={!reply[o.id]?.trim()||sending===o.id} onClick={()=>void sendReply(o.id)}
+       style={{padding:'10px 14px',borderRadius:8,background:reply[o.id]?.trim()?'#1a5eb8':'#8295a8',color:'white',border:'none',fontWeight:700,cursor:reply[o.id]?.trim()?'pointer':'default',display:'flex',alignItems:'center',gap:4,fontSize:13}}>
+      <Send size={14}/>{sending===o.id?'…':'Enviar'}
+     </button>
+    </div>
+    {sendErr[o.id]&&<p style={{fontSize:12,color:'#b91c1c',marginTop:4}}>{sendErr[o.id]}</p>}
+   </div>}
+  </div>)}
+ </div>;
+}
+
+function OrderCard({item,companyId,onNavigate}: {item: TechAssignedOrder;companyId:string;onNavigate:()=>void}) {
   const [inspect,setInspect]=useState(false);
   const [showHistory,setShowHistory]=useState(false);
   const [activeVisitId,setActiveVisitId]=useState<string|null>(null);
@@ -74,7 +157,7 @@ function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>vo
       {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
       {o.gate_id && <button type="button" onClick={()=>setShowHistory(v=>!v)} style={{marginTop:10,padding:12,borderRadius:9,border:'1px solid #cbd5e1',background:'white'}}>{showHistory?'Cerrar historial':'Ver historial del portón'}</button>}
       {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} orderId={o.status==='completed'?o.id:undefined}/>}
-      {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setInspect(false);onNavigate()}}/>}
+      {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setInspect(false);onNavigate()}}/>}
     </div>
   );
 }
@@ -135,7 +218,7 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
           {byDay[day]
             .sort((a, b) =>
               (a.service_orders?.scheduled_start ?? '').localeCompare(b.service_orders?.scheduled_start ?? ''))
-            .map(item => <OrderCard key={item.id} item={item} onNavigate={onNavigate}/>)}
+            .map(item => <OrderCard key={item.id} item={item} companyId={companyId} onNavigate={onNavigate}/>)}
         </div>
       ))}
     </>
@@ -144,7 +227,7 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
 
 function GatesSection({companyId, userId, onNavigate}: {companyId: string; userId: string; onNavigate:()=>void}) {
   const queryClient=useQueryClient();
-  const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
+  const [selected,setSelected]=useState<{id:string;code:string;gateId?:string}|null>(null);
   const [pendingGate,setPendingGate]=useState<{id:string;code:string}|null>(null);
   const [historyGate,setHistoryGate]=useState<string|null>(null);
   const [busy,setBusy]=useState<string|null>(null);
@@ -161,7 +244,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
     const timer=window.setInterval(()=>{void beat();},30000);
     return()=>{live=false;window.clearInterval(timer);};
   },[activeVisitId,inspDone,selected?.id]);
-  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
+  const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code,gateId:gate.id});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
   const profileQ = useMyTechnicianProfile(userId, companyId);
   const ordersQ  = useMyAssignedOrders(companyId, profileQ.data?.id);
@@ -184,7 +267,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
       <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
       {!selected && pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
-      {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setSelected(null);setActiveVisitId(null);setInspDone(false);onNavigate()}}/>}
+      {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setSelected(null);setActiveVisitId(null);setInspDone(false);onNavigate()}}/>}
       {!selected && gates.map(g => (
         <div key={g.id} className="tech-gate-row tech-gate-row--action" style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'center'}}>
           <DoorOpen size={18}/>
@@ -193,7 +276,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
           <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700,flexShrink:0}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
-          <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>{const activeId=activeGateOrders.get(g.id);if(activeId){setSelected({id:activeId,code:g.code});}else{setPendingGate({id:g.id,code:g.code});}}}>{busy===g.id?'Cargando…':activeGateOrders.has(g.id)?'Continuar inspección':'Iniciar mantenimiento'}</button>
+          <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>{const activeId=activeGateOrders.get(g.id);if(activeId){setSelected({id:activeId,code:g.code,gateId:g.id});}else{setPendingGate({id:g.id,code:g.code});}}}>{busy===g.id?'Cargando…':activeGateOrders.has(g.id)?'Continuar inspección':'Iniciar mantenimiento'}</button>
           {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
@@ -212,7 +295,8 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
     {key: 'orders', label: 'Mis órdenes', icon: CalendarDays},
-    {key: 'gates',  label: 'Iniciar mantenimiento',    icon: DoorOpen},
+    {key: 'gates',  label: 'Iniciar mantenimiento', icon: DoorOpen},
+    {key: 'observations', label: 'Observaciones', icon: MessageCircle},
   ];
 
   return (
@@ -231,6 +315,7 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
       </div>
       {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
       {section === 'gates' && <GatesSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'observations' && <ObservationsInbox companyId={companyId}/>}
     </div>
   );
 }
