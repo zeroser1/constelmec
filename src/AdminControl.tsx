@@ -7,7 +7,7 @@ import type {OrderTechnicianRole} from './lib/types';
 import './admin.css';
 import ContactManager from './ContactManager';
 import TechnicianManager from './TechnicianManager';
-export type ServiceOrder={id:string;company_id:string;gate_id?:string;service_type:string;status:string;scheduled_start:string;scheduled_end:string;completed_at:string|null;next_service_at:string|null;notes:string|null;gates:{code:string;description:string}|null;facilities:{name:string}|null;technician_profiles:{first_name:string;last_name:string}|null};
+export type ServiceOrder={id:string;company_id:string;gate_id?:string;assigned_technician_id?:string;service_type:string;status:string;scheduled_start:string;scheduled_end:string;completed_at:string|null;next_service_at:string|null;notes:string|null;gates:{code:string;description:string}|null;facilities:{name:string}|null;technician_profiles:{first_name:string;last_name:string}|null};
 export type Technician={id:string;company_id:string;first_name:string;last_name:string;work_phone:string|null;work_email:string|null;specialty:string|null;driving_authorized:boolean;license_expires_on:string|null;active:boolean};
 export type Company={
   id:string;
@@ -32,7 +32,7 @@ function samples():{orders:ServiceOrder[];techs:Technician[]}{
  const base=new Date();base.setHours(9,0,0,0);
  const techs:Technician[]=[['t1','a','Martín','González'],['t2','b','Lucas','Fernández'],['t3','c','Diego','Romero']].map(([id,company_id,first_name,last_name],i)=>({id,company_id,first_name,last_name,work_phone:null,work_email:null,specialty:['Mecánica','Electricidad / PLC','Automatización'][i],driving_authorized:i!==2,license_expires_on:null,active:true}));
  const offsets=[0,0,1,2,3,4,-2];
- const orders=offsets.map((offset,i)=>{const d=new Date(base);d.setDate(d.getDate()+offset);d.setHours(i%2?13:9,0);const end=new Date(d);end.setHours(d.getHours()+2);const t=techs[i%3];return {id:'demo'+i,company_id:t.company_id,service_type:i===2?'corrective':'preventive',status:i===6?'scheduled':i===1?'in_progress':i===5?'completed':'scheduled',scheduled_start:d.toISOString(),scheduled_end:end.toISOString(),completed_at:i===5?end.toISOString():null,next_service_at:null,notes:null,gates:{code:'P-'+String(14+i).padStart(3,'0'),description:'Portón industrial'},facilities:{name:['Planta principal','Sector logística','Depósito'][i%3]},technician_profiles:{first_name:t.first_name,last_name:t.last_name}} satisfies ServiceOrder});
+ const orders=offsets.map((offset,i)=>{const d=new Date(base);d.setDate(d.getDate()+offset);d.setHours(i%2?13:9,0);const end=new Date(d);end.setHours(d.getHours()+2);const t=techs[i%3];return {id:'demo'+i,company_id:t.company_id,assigned_technician_id:t.id,service_type:i===2?'corrective':'preventive',status:i===6?'scheduled':i===1?'in_progress':i===5?'completed':'scheduled',scheduled_start:d.toISOString(),scheduled_end:end.toISOString(),completed_at:i===5?end.toISOString():null,next_service_at:null,notes:null,gates:{code:'P-'+String(14+i).padStart(3,'0'),description:'Portón industrial'},facilities:{name:['Planta principal','Sector logística','Depósito'][i%3]},technician_profiles:{first_name:t.first_name,last_name:t.last_name}} satisfies ServiceOrder});
  return {orders,techs};
 }
 const demo=samples();

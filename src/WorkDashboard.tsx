@@ -30,7 +30,7 @@ type SubTab='active'|'completed'|'pending';
 
 export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];companyId:string|undefined}){
  const [selectedDate,setSelectedDate]=useState(todayKey());
- const [techFilter,setTechFilter]=useState('');
+ const [techFilter,setTechFilter]=useState(''); // stores assigned_technician_id
  const [subTab,setSubTab]=useState<SubTab>('active');
  const [historyGate,setHistoryGate]=useState<{gateId:string;orderId?:string}|null>(null);
 
@@ -50,10 +50,13 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
  const now=Date.now();
 
  const withTech=techFilter
-  ?orders.filter(o=>o.technician_profiles&&`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`===techFilter)
+  ?orders.filter(o=>o.assigned_technician_id===techFilter)
   :orders;
 
- const active=withTech.filter(o=>o.status==='in_progress');
+ const isToday=selectedDate===todayKey();
+ // Active: on today's view include overdue in_progress orders (scheduled yesterday, still running);
+ // on a past-date view include only orders scheduled on that specific day.
+ const active=withTech.filter(o=>o.status==='in_progress'&&(isToday||dayKey(o.scheduled_start)===selectedDate));
  const completed=withTech.filter(o=>{
   if(o.status!=='completed')return false;
   return dayKey(o.completed_at??o.scheduled_start)===selectedDate;
@@ -65,12 +68,15 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
 
  const allToday=withTech.filter(o=>{
   if(o.status==='cancelled')return false;
+  if(o.status==='in_progress')return isToday||dayKey(o.scheduled_start)===selectedDate;
   const d=o.status==='completed'?(o.completed_at??o.scheduled_start):o.scheduled_start;
   return dayKey(d)===selectedDate;
  });
  const uniqueGates=new Set(allToday.map(o=>o.gate_id??o.gates?.code??o.id)).size;
 
- const techNames=[...new Set(orders.filter(o=>o.technician_profiles).map(o=>`${o.technician_profiles!.first_name} ${o.technician_profiles!.last_name}`))].sort();
+ const techMap=new Map<string,string>();
+ for(const o of orders){if(o.assigned_technician_id&&o.technician_profiles)techMap.set(o.assigned_technician_id,`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`);}
+ const techEntries=[...techMap.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
 
  const card={border:'1px solid #e2e8f0',borderRadius:12,padding:14,marginTop:10,background:'#fff'} as const;
 
@@ -83,12 +89,12 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
      <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
       style={{display:'block',padding:'6px 10px',border:'1px solid #d1dbe5',borderRadius:7,fontSize:14,marginTop:4}}/>
     </label>
-    {techNames.length>0&&<label style={{fontSize:13,fontWeight:600}}>
+    {techEntries.length>0&&<label style={{fontSize:13,fontWeight:600}}>
      Técnico
      <select value={techFilter} onChange={e=>setTechFilter(e.target.value)}
       style={{display:'block',padding:'6px 10px',border:'1px solid #d1dbe5',borderRadius:7,fontSize:14,marginTop:4}}>
       <option value="">Todos</option>
-      {techNames.map(n=><option key={n} value={n}>{n}</option>)}
+      {techEntries.map(([id,name])=><option key={id} value={id}>{name}</option>)}
      </select>
     </label>}
    </div>
@@ -178,7 +184,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
       <div style={{fontSize:13,display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
        {o.technician_profiles&&<span><HardHat size={12} style={{verticalAlign:'middle'}}/> {o.technician_profiles.first_name} {o.technician_profiles.last_name}</span>}
        {o.facilities&&<span><MapPin size={12} style={{verticalAlign:'middle'}}/> {o.facilities.name}</span>}
-       <span><CheckCircle2 size={12} style={{verticalAlign:'middle'}}/> {fmtDate(o.completed_at??o.scheduled_start)}</span>
+       <span><CheckCircle2 size={12} style={{verticalAlign:'middle'}}/> Finalizado {fmtDate(o.completed_at??o.scheduled_start)}{o.completed_at?` a las ${fmt(o.completed_at)}`:''}</span>
        <span><Wrench size={12} style={{verticalAlign:'middle'}}/> {svcLabel[o.service_type]??o.service_type}</span>
       </div>
       {o.gate_id&&<button onClick={()=>setHistoryGate({gateId:o.gate_id!,orderId:o.id})}
