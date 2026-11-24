@@ -105,3 +105,11 @@ html[data-theme=dark] .tech-order-card--in_progress{border-color:#1f4a2a}
 .tech-gate-row--action>.tech-gate-start:disabled{opacity:.65;cursor:wait}
 .tech-gate-row--action>.tech-gate-start:focus-visible{outline:3px solid #496d9d;outline-offset:3px}
 @media(max-width:600px){.tech-gate-row--action{grid-template-columns:22px minmax(0,1fr);gap:10px 12px;padding:16px}.tech-gate-row--action>svg{grid-column:1;grid-row:1}.tech-gate-row--action>div{grid-column:2;grid-row:1}.tech-gate-row--action>.adm-status{grid-column:2;grid-row:2;justify-self:start}.tech-gate-row--action>.tech-gate-start{grid-column:1/-1;grid-row:3;width:100%}}
+
+/* Mobile customer cards: keep activity notices and status badges in normal flow. */
+@media (max-width: 767px) {
+  .cust-gate-card { flex-wrap: wrap; align-items: flex-start; }
+  .cust-gate-info { min-width: 0; flex: 1 1 65%; }
+  .cust-gate-info [role='status'] { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .cust-gate-card > .adm-status { position: static; flex: 0 0 auto; margin-left: auto; }
+}
