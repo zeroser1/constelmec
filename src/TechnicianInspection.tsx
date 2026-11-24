@@ -47,6 +47,9 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
  },[visitId,companyId]);
  const uploadPhoto=async(key:string,phase:string,file:File)=>{
   if(!visitId||!companyId){setPhotoErr(e=>({...e,[key]:'Iniciá la inspección antes de subir fotos.'}));return;}
+  if(file.size>10*1024*1024){setPhotoErr(e=>({...e,[key]:'El archivo supera los 10 MB. Usá una foto más pequeña.'}));return;}
+  const allowed=['image/jpeg','image/png','image/webp','image/heic','image/heif'];
+  if(!allowed.includes(file.type)){setPhotoErr(e=>({...e,[key]:`Formato no permitido (${file.type||'desconocido'}). Usá JPEG, PNG o WEBP.`}));return;}
   setPhotoErr(e=>({...e,[key]:''}));
   const tempId='tmp-'+Math.random().toString(36).slice(2);
   setPhotos(p=>({...p,[key]:[...(p[key]??[]),{id:tempId,path:'',phase,status:'uploading'}]}));
@@ -105,7 +108,7 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
     {visitId&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:8,alignItems:'center'}}>
      <label style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 11px',borderRadius:8,border:'1px solid #cbd5e1',cursor:busy||finished?'default':'pointer',fontSize:12,color:'#334155',background:'#f8fafc',opacity:busy||finished?0.5:1}}>
       📷 Foto
-      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" style={{display:'none'}} disabled={busy||finished}
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style={{display:'none'}} disabled={busy||finished}
        onChange={e=>{const f=e.target.files?.[0];if(f){void uploadPhoto(key,results[key]==='fault'?'fault':'inspection',f);}e.target.value='';}}/>
      </label>
      {photoErr[key]&&<small style={{color:'#b91c1c',fontSize:11}}>{photoErr[key]}</small>}

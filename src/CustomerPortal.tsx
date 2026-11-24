@@ -1,7 +1,7 @@
 import {useQuery} from '@tanstack/react-query';
 import GateHistory from './GateHistory';
 import {supabase} from './lib/supabase';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,MessageCircle,Send,ShieldAlert,Wrench} from 'lucide-react';
 import {useGateObservations,useObservationMutations,useRealGates,useVisits,useCompanyServiceOrders} from './hooks/useRealData';
 import type {RealGate} from './lib/types';
@@ -103,10 +103,14 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
   const past       = gateOrders.filter(o => o.status === 'completed')
     .sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start));
 
+  const submittingRef = useRef(false);
+
   const submit = () => {
-    if (!body.trim()) return;
+    if (!body.trim() || submittingRef.current) return;
+    submittingRef.current = true;
     addObservation.mutate({gateId: gate.id, body: body.trim(), authorId: userId}, {
       onSuccess: () => { setBody(''); setSent(true); setTimeout(() => setSent(false), 3000); },
+      onSettled: () => { submittingRef.current = false; },
     });
   };
 
