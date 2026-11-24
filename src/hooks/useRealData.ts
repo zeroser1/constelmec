@@ -888,3 +888,30 @@ export function useCreateServiceOrder() {
 
   return { createOrder };
 }
+
+// ── Company-wide order technician map (migration 008) ──────────────────────────
+// Used by WorkDashboard to build the tech filter dropdown and filter orders
+// without relying on the legacy assigned_technician_id field.
+
+type CompanyOrderTechEntry = {
+  service_order_id: string;
+  technician_id: string;
+  technician_profiles: { first_name: string; last_name: string } | null;
+};
+
+export function useCompanyOrderTechnicians(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['company-order-technicians', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<CompanyOrderTechEntry[]> => {
+      const { data, error } = await supabase!
+        .from('service_order_technicians')
+        .select('service_order_id,technician_id,technician_profiles(first_name,last_name)')
+        .eq('company_id', companyId!)
+        .eq('active', true)
+        .order('assigned_at', { ascending: true });
+      if (error) throw new Error(error.message);
+      return unwrap<CompanyOrderTechEntry[]>(data);
+    },
+  });
+}

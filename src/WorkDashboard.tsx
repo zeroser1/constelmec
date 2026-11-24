@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {Activity,CalendarDays,CheckCircle2,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {supabase} from './lib/supabase';
+import {useCompanyOrderTechnicians} from './hooks/useRealData';
 import GateHistory from './GateHistory';
 import type {ServiceOrder} from './AdminControl';
 
@@ -30,7 +31,7 @@ type SubTab='active'|'completed'|'pending';
 
 export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];companyId:string|undefined}){
  const [selectedDate,setSelectedDate]=useState(todayKey());
- const [techFilter,setTechFilter]=useState(''); // stores assigned_technician_id
+ const [techFilter,setTechFilter]=useState('');
  const [subTab,setSubTab]=useState<SubTab>('active');
  const [historyGate,setHistoryGate]=useState<{gateId:string;orderId?:string}|null>(null);
 
@@ -50,8 +51,24 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
  const liveByOrderId=new Map((liveQ.data??[]).map(r=>[r.order_id,r]));
  const now=Date.now();
 
+ // Build order→technicians map from service_order_technicians (source of truth for new orders)
+ const orderTechsQ=useCompanyOrderTechnicians(companyId);
+ const orderTechMap=new Map<string,{id:string;name:string}[]>();
+ for(const e of orderTechsQ.data??[]){
+  const name=e.technician_profiles?`${e.technician_profiles.first_name} ${e.technician_profiles.last_name}`:'';
+  if(!name)continue;
+  const list=orderTechMap.get(e.service_order_id)??[];
+  list.push({id:e.technician_id,name});
+  orderTechMap.set(e.service_order_id,list);
+ }
+
+ // Helper: first assigned tech name for display in cards
+ const techNameForOrder=(o:ServiceOrder)=>
+  o.technician_profiles?`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`:
+  orderTechMap.get(o.id)?.[0]?.name??null;
+
  const withTech=techFilter
-  ?orders.filter(o=>o.assigned_technician_id===techFilter)
+  ?orders.filter(o=>(orderTechMap.get(o.id)??[]).some(e=>e.id===techFilter)||o.assigned_technician_id===techFilter)
   :orders;
 
  const isToday=selectedDate===todayKey();
@@ -75,8 +92,16 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
  });
  const uniqueGates=new Set(allToday.map(o=>o.gate_id??o.gates?.code??o.id)).size;
 
+ // Tech dropdown: prefer service_order_technicians, fall back to legacy assigned_technician_id
  const techMap=new Map<string,string>();
- for(const o of orders){if(o.assigned_technician_id&&o.technician_profiles)techMap.set(o.assigned_technician_id,`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`);}
+ for(const e of orderTechsQ.data??[]){
+  const name=e.technician_profiles?`${e.technician_profiles.first_name} ${e.technician_profiles.last_name}`:'';
+  if(name)techMap.set(e.technician_id,name);
+ }
+ for(const o of orders){
+  if(o.assigned_technician_id&&o.technician_profiles&&!techMap.has(o.assigned_technician_id))
+   techMap.set(o.assigned_technician_id,`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`);
+ }
  const techEntries=[...techMap.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
 
  const card={border:'1px solid #e2e8f0',borderRadius:12,padding:14,marginTop:10,background:'#fff'} as const;
@@ -146,7 +171,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
      const isConnected=live?now-new Date(live.last_seen_at).getTime()<=60000:false;
      const done=live?Number(live.controls_done):0;
      const total=live?Number(live.controls_total):8;
-     const techName=live?.technician_name||(o.technician_profiles?`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`:'Sin técnico');
+     const techName=live?.technician_name||(o.technician_profiles?`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`:null)||orderTechMap.get(o.id)?.[0]?.name||'Sin técnico';
      return <article key={o.id} style={{...card,borderLeft:`4px solid ${isConnected?'#166534':'#92400e'}`}}>
       <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
        <strong style={{fontSize:15}}><DoorOpen size={14} style={{verticalAlign:'middle',marginRight:4}}/>{o.gates?.code??'—'} · {o.gates?.description??'Portón'}</strong>
@@ -184,6 +209,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
       </div>
       <div style={{fontSize:13,display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
        {o.technician_profiles&&<span><HardHat size={12} style={{verticalAlign:'middle'}}/> {o.technician_profiles.first_name} {o.technician_profiles.last_name}</span>}
+       {!o.technician_profiles&&techNameForOrder(o)&&<span><HardHat size={12} style={{verticalAlign:'middle'}}/> {techNameForOrder(o)}</span>}
        {o.facilities&&<span><MapPin size={12} style={{verticalAlign:'middle'}}/> {o.facilities.name}</span>}
        <span><CheckCircle2 size={12} style={{verticalAlign:'middle'}}/> Finalizado {fmtDate(o.completed_at??o.scheduled_start)}{o.completed_at?` a las ${fmt(o.completed_at)}`:''}</span>
        <span><Wrench size={12} style={{verticalAlign:'middle'}}/> {svcLabel[o.service_type]??o.service_type}</span>
@@ -207,6 +233,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
       </div>
       <div style={{fontSize:13,display:'flex',flexWrap:'wrap',gap:'4px 16px'}}>
        {o.technician_profiles&&<span><HardHat size={12} style={{verticalAlign:'middle'}}/> {o.technician_profiles.first_name} {o.technician_profiles.last_name}</span>}
+       {!o.technician_profiles&&techNameForOrder(o)&&<span><HardHat size={12} style={{verticalAlign:'middle'}}/> {techNameForOrder(o)}</span>}
        {o.facilities&&<span><MapPin size={12} style={{verticalAlign:'middle'}}/> {o.facilities.name}</span>}
        <span><CalendarDays size={12} style={{verticalAlign:'middle'}}/> {fmt(o.scheduled_start)} – {fmt(o.scheduled_end)}</span>
        <span><Wrench size={12} style={{verticalAlign:'middle'}}/> {svcLabel[o.service_type]??o.service_type}</span>
