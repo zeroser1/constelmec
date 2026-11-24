@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import GateHistory from './GateHistory';
 import {supabase} from './lib/supabase';
 import {useState} from 'react';
 import {AlertTriangle,ArrowLeft,CheckCircle2,DoorOpen,FileText,HardHat,Send,ShieldAlert,Wrench} from 'lucide-react';
@@ -62,6 +63,7 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
   const {addObservation} = useObservationMutations(companyId);
   const [body, setBody] = useState('');
   const [sent, setSent]  = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const gateObs    = (obsQ.data ?? []);
   const gateOrders = (ordersQ.data ?? []).filter(o => o.gates?.code === gate.code);
@@ -97,13 +99,20 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
       {!visitsQ.isLoading && past.length === 0 && (
         <p className="cust-empty">Sin visitas registradas.</p>
       )}
+      {ordersQ.isError && <p role="alert" className="cust-error">No se pudo cargar el historial de órdenes.</p>}
       {past.map(o => (
-        <div key={o.id} className="cust-history-row">
-          <CheckCircle2 size={14} className="cust-icon-ok"/>
-          <div>
-            <strong>{serviceTypeLabel[o.service_type] ?? o.service_type}</strong>
-            <span>{fmt(o.scheduled_start)}{o.technician_profiles ? ` · ${o.technician_profiles.first_name} ${o.technician_profiles.last_name}` : ''}</span>
-          </div>
+        <div key={o.id} className="cust-history-entry">
+          <button type="button" className="cust-history-row cust-history-button"
+            aria-expanded={expandedOrderId === o.id}
+            onClick={() => setExpandedOrderId(prev => prev === o.id ? null : o.id)}>
+            <CheckCircle2 size={14} className="cust-icon-ok"/>
+            <span className="cust-history-description">
+              <strong>{serviceTypeLabel[o.service_type] ?? o.service_type}</strong>
+              <span>{fmt(o.completed_at ?? o.scheduled_start)}{o.technician_profiles ? ` · ${o.technician_profiles.first_name} ${o.technician_profiles.last_name}` : ''}</span>
+            </span>
+            <span className="cust-history-action">{expandedOrderId === o.id ? 'Ocultar informe' : 'Ver informe'}</span>
+          </button>
+          {expandedOrderId === o.id && <GateHistory gateId={gate.id} orderId={o.id}/>}
         </div>
       ))}
 
