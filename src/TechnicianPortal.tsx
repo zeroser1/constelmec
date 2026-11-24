@@ -68,6 +68,7 @@ function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>vo
         {o.facilities && <span><MapPin size={13}/>{o.facilities.name}</span>}
         {o.gates && <span><DoorOpen size={13}/>{o.gates.code} · {o.gates.description}</span>}
       </div>
+      <p className="tech-order-identifier">Orden #{o.id.slice(0,8)}</p>
       {o.notes && <p className="tech-order-notes">{o.notes}</p>}
       {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
       {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
