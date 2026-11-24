@@ -43,7 +43,9 @@ function useCustomerLiveJobs(companyId:string){
   return (data??[]) as CustomerLiveJob[];
  },refetchInterval:5000,staleTime:3000});
 }
-function CustomerWorkStatus({job}:{job:CustomerLiveJob|undefined}){
+function CustomerWorkStatus({job,isLoading,isError}:{job:CustomerLiveJob|undefined;isLoading:boolean;isError:boolean}){
+ if(isLoading)return <span role="status" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:13,color:'#64748b',padding:'7px 10px'}}>Verificando actividad…</span>;
+ if(isError)return <span role="status" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:13,color:'#92400e',background:'#fef3c7',padding:'7px 10px',borderRadius:8}}>No se pudo verificar la actividad en tiempo real.</span>;
  if(!job)return null;
  const active=Date.now()-new Date(job.last_seen_at).getTime()<=60000;
  return <span role="status" style={{display:'inline-flex',alignItems:'center',gap:6,flexWrap:'wrap',fontSize:13,fontWeight:700,color:active?'#166534':'#92400e',background:active?'#dcfce7':'#fef3c7',padding:'7px 10px',borderRadius:8}}>
@@ -59,7 +61,6 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
   const [body, setBody] = useState('');
   const [sent, setSent]  = useState(false);
 
-  const gateVisits = (visitsQ.data ?? []).filter(v => v.gate_id === gate.id);
   const gateObs    = (obsQ.data ?? []);
   const gateOrders = (ordersQ.data ?? []).filter(o => o.gates?.code === gate.code);
   const upcoming   = gateOrders.filter(o => !['cancelled','completed'].includes(o.status))
@@ -88,10 +89,10 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
         </div>
       ))}
 
-      {/* Visit history */}
+      {/* Visit history — show completed service orders only; visits are always linked to orders */}
       <div className="cust-section-head"><CheckCircle2 size={16}/>Historial de visitas</div>
       {visitsQ.isLoading && <p className="cust-empty">Cargando…</p>}
-      {!visitsQ.isLoading && gateVisits.length === 0 && past.length === 0 && (
+      {!visitsQ.isLoading && past.length === 0 && (
         <p className="cust-empty">Sin visitas registradas.</p>
       )}
       {past.map(o => (
@@ -100,15 +101,6 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
           <div>
             <strong>{serviceTypeLabel[o.service_type] ?? o.service_type}</strong>
             <span>{fmt(o.scheduled_start)}{o.technician_profiles ? ` · ${o.technician_profiles.first_name} ${o.technician_profiles.last_name}` : ''}</span>
-          </div>
-        </div>
-      ))}
-      {gateVisits.filter(v => v.status === 'closed').map(v => (
-        <div key={v.id} className="cust-history-row">
-          <CheckCircle2 size={14} className="cust-icon-ok"/>
-          <div>
-            <strong>Visita técnica</strong>
-            <span>{v.closed_at ? fmt(v.closed_at) : fmt(v.created_at)}</span>
           </div>
         </div>
       ))}
@@ -185,7 +177,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
           {stateLabel[selectedGate.operational_state] ?? selectedGate.operational_state}
         </span>
       </div>
-      <CustomerWorkStatus job={activeForGate(selectedGate.id)}/>
+      <CustomerWorkStatus job={activeForGate(selectedGate.id)} isLoading={liveQ.isLoading} isError={!!liveQ.error}/>
       <GateDetailPanel gate={selectedGate} companyId={companyId} userId={userId}/>
     </div>
   );
@@ -202,7 +194,7 @@ export default function CustomerPortal({companyId, userId, membership}: Props) {
           <div className="cust-gate-info">
             <strong>{g.code} · {g.description}</strong>
             <span>{g.facilities?.name ?? 'Sin instalación'}{g.model ? ` · ${g.model}` : ''}</span>
-            <CustomerWorkStatus job={activeForGate(g.id)}/>
+            <CustomerWorkStatus job={activeForGate(g.id)} isLoading={false} isError={false}/>
           </div>
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}

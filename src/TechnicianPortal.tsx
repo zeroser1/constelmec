@@ -1,7 +1,7 @@
 import {supabase} from './lib/supabase';
 import TechnicianInspection from './TechnicianInspection';
 import GateHistory from './GateHistory';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
@@ -40,7 +40,19 @@ function dayKey(iso: string) {
 function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>void}) {
   const [inspect,setInspect]=useState(false);
   const [showHistory,setShowHistory]=useState(false);
+  const [activeVisitId,setActiveVisitId]=useState<string|null>(null);
+  const [inspDone,setInspDone]=useState(false);
   const o = item.service_orders;
+
+  // Heartbeat lives here — survives TechnicianInspection being hidden/shown
+  useEffect(()=>{
+    if(!activeVisitId||inspDone||!o?.id)return;
+    let live=true;
+    const beat=async()=>{const{error}=await supabase!.rpc('tech_live_heartbeat',{p_order_id:o.id,p_visit_id:activeVisitId});if(error&&live)console.warn('Heartbeat failed:',error.message);};
+    void beat();
+    const timer=window.setInterval(()=>{void beat();},15000);
+    return()=>{live=false;window.clearInterval(timer);};
+  },[activeVisitId,inspDone,o?.id]);
   if (!o) return null;
   return (
     <div className={`tech-order-card tech-order-card--${o.status}`}>
@@ -61,7 +73,7 @@ function OrderCard({item,onNavigate}: {item: TechAssignedOrder;onNavigate:()=>vo
       {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
       {o.gate_id && <button type="button" onClick={()=>setShowHistory(v=>!v)} style={{marginTop:10,padding:12,borderRadius:9,border:'1px solid #cbd5e1',background:'white'}}>{showHistory?'Cerrar historial':'Ver historial del portón'}</button>}
       {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} orderId={o.status==='completed'?o.id:undefined}/>}
-      {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onDone={()=>{setInspect(false);onNavigate()}}/>}
+      {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setInspect(false);onNavigate()}}/>}
     </div>
   );
 }
@@ -136,6 +148,18 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
   const [historyGate,setHistoryGate]=useState<string|null>(null);
   const [busy,setBusy]=useState<string|null>(null);
   const [error,setError]=useState('');
+  const [activeVisitId,setActiveVisitId]=useState<string|null>(null);
+  const [inspDone,setInspDone]=useState(false);
+
+  // Heartbeat for spontaneous orders — survives section nav hiding the checklist
+  useEffect(()=>{
+    if(!activeVisitId||inspDone||!selected?.id)return;
+    let live=true;
+    const beat=async()=>{const{error}=await supabase!.rpc('tech_live_heartbeat',{p_order_id:selected.id,p_visit_id:activeVisitId});if(error&&live)console.warn('Heartbeat failed:',error.message);};
+    void beat();
+    const timer=window.setInterval(()=>{void beat();},15000);
+    return()=>{live=false;window.clearInterval(timer);};
+  },[activeVisitId,inspDone,selected?.id]);
   const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
   const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',observations:'Con observaciones',out_of_service:'Fuera de servicio'};
@@ -148,7 +172,7 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
       <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
       {!selected && pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
-      {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} onDone={()=>{setSelected(null);onNavigate()}}/>}
+      {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setSelected(null);setActiveVisitId(null);setInspDone(false);onNavigate()}}/>}
       {!selected && gates.map(g => (
         <div key={g.id} className="tech-gate-row tech-gate-row--action" style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'center'}}>
           <DoorOpen size={18}/>

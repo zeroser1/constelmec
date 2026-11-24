@@ -34,15 +34,14 @@ export function usePlatformAdminData(userId: string | undefined, isPlatformAdmin
       if (compError) throw new Error(compError.message);
       const [orders, technicians] = await Promise.all([
         supabase!.from('service_orders')
-          .select('id,company_id,service_type,status,scheduled_start,scheduled_end,completed_at,next_service_at,notes,gates(code,description),facilities(name),technician_profiles(first_name,last_name)')
+          .select('id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,completed_at,next_service_at,notes,gates(code,description),facilities(name),technician_profiles(first_name,last_name)')
           .order('scheduled_start', { ascending: true }),
         supabase!.from('technician_profiles')
           .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
           .order('last_name', { ascending: true }),
       ]);
       if (orders.error) throw new Error(orders.error.message);
-      if (technicians.error) throw new Error(technicians.error.message);
-      return {
+      if (technicians.error) throw new Error(technicians.error.message);      return {
         companies: unwrap<Company[]>(companies),
         orders: unwrap<ServiceOrder[]>(orders.data),
         technicians: unwrap<Technician[]>(technicians.data),
@@ -181,7 +180,7 @@ export function useAdminData(isAdmin: boolean, userId: string | undefined) {  re
         supabase!.from('companies').select('id,name').in('id', ids),
         supabase!
           .from('service_orders')
-          .select('id,company_id,service_type,status,scheduled_start,scheduled_end,completed_at,next_service_at,notes,gates(code,description),facilities(name),technician_profiles(first_name,last_name)')
+          .select('id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,completed_at,next_service_at,notes,gates(code,description),facilities(name),technician_profiles(first_name,last_name)')
           .in('company_id', ids)
           .order('scheduled_start', { ascending: true }),
         supabase!
@@ -747,7 +746,7 @@ export function useCompanyServiceOrders(companyId: string | undefined) {
       const { data, error } = await supabase!
         .from('service_orders')
         .select(
-          'id,company_id,service_type,status,scheduled_start,scheduled_end,' +
+          'id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,' +
           'completed_at,next_service_at,notes,' +
           'gates(code,description),facilities(name),technician_profiles(first_name,last_name)',
         )
