@@ -1,7 +1,7 @@
 import {supabase} from './lib/supabase';
 import TechnicianInspection from './TechnicianInspection';
 import GateHistory from './GateHistory';
-import {useEffect,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
@@ -142,7 +142,7 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
   );
 }
 
-function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>void}) {
+function GatesSection({companyId, userId, onNavigate}: {companyId: string; userId: string; onNavigate:()=>void}) {
   const queryClient=useQueryClient();
   const [selected,setSelected]=useState<{id:string;code:string}|null>(null);
   const [pendingGate,setPendingGate]=useState<{id:string;code:string}|null>(null);
@@ -163,9 +163,20 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
   },[activeVisitId,inspDone,selected?.id]);
   const startGate=async (gate:{id:string;code:string})=>{setBusy(gate.id);setError('');try{const {data,error}=await supabase!.rpc('tech_create_spontaneous_order',{p_gate_id:gate.id,p_service_type:'preventive'});if(error)throw error;await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSelected({id:data as string,code:gate.code});setPendingGate(null);}catch(e){setError((e as Error).message)}finally{setBusy(null)}};
   const gatesQ = useRealGates(companyId);
+  const profileQ = useMyTechnicianProfile(userId, companyId);
+  const ordersQ  = useMyAssignedOrders(companyId, profileQ.data?.id);
+  // Map gateId → orderId for active in_progress orders (used to show "Continuar" button)
+  const activeGateOrders = useMemo(()=>{
+    const m = new Map<string,string>();
+    for (const item of ordersQ.data ?? []) {
+      if (item.service_orders?.status==='in_progress' && item.service_orders.gate_id)
+        m.set(item.service_orders.gate_id, item.service_orders.id);
+    }
+    return m;
+  },[ordersQ.data]);
   const stateLabel: Record<string,string> = {operational:'Operativo',with_observations:'Con observaciones',observations:'Con observaciones',out_of_service:'Fuera de servicio'};
   const stateClass: Record<string,string> = {operational:'operational',with_observations:'in_progress',out_of_service:'unassigned'};
-  if (gatesQ.isLoading) return <p className="cust-empty">Cargando portones…</p>;
+  if (gatesQ.isLoading || profileQ.isLoading || ordersQ.isLoading) return <p className="cust-empty">Cargando portones…</p>;
   const gates = gatesQ.data ?? [];
   if (gates.length === 0) return <p className="cust-empty">No hay portones registrados.</p>;
   return (
@@ -182,7 +193,7 @@ function GatesSection({companyId,onNavigate}: {companyId: string;onNavigate:()=>
             <span>{g.facilities?.name ?? 'Sin instalación'}</span>
           </div>
           <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700,flexShrink:0}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
-          <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>setPendingGate({id:g.id,code:g.code})}>{busy===g.id?'Creando…':'Iniciar mantenimiento'}</button>
+          <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>{const activeId=activeGateOrders.get(g.id);if(activeId){setSelected({id:activeId,code:g.code});}else{setPendingGate({id:g.id,code:g.code});}}}>{busy===g.id?'Cargando…':activeGateOrders.has(g.id)?'Continuar inspección':'Iniciar mantenimiento'}</button>
           {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
@@ -219,7 +230,7 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
         ))}
       </div>
       {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
-      {section === 'gates' && <GatesSection companyId={companyId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'gates' && <GatesSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
     </div>
   );
 }
