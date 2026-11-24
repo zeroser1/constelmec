@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ArrowRight, Eye, EyeOff, LogOut, ShieldAlert } from 'lucide-react';
+import { ArrowRight, DoorOpen, Eye, EyeOff, HardHat, LogOut, ShieldAlert } from 'lucide-react';
 import './real-access.css';
 import logo from './assets/logo.png';
 import './portal.css';
 import AdminControl from './AdminControl';
+import AppShell from './AppShell';
 import PlatformAdminControl from './PlatformAdminControl';
 import CustomerPortal from './CustomerPortal';
 import TechnicianPortal from './TechnicianPortal';
@@ -55,9 +56,9 @@ export default function RealAccess({ onDemo }: { onDemo: () => void }) {
 
   if (session && membership?.role === 'admin') return <AdminControl companies={adminQ.data?.companies ?? []} orders={adminQ.data?.orders ?? []} technicians={adminQ.data?.technicians ?? []} email={session.user.email ?? ''} onLogout={logout} />;
 
-  if (session && membership?.role === 'technician') return <TechnicianPortal companyId={membership.company_id} userId={session.user.id} membership={membership} />;
+  if (session && membership?.role === 'technician') return <AppShell navItems={[{key:'technician',label:'Portal técnico',icon:HardHat}]} activeSection="technician" onNavigate={()=>{}} brand="Portal técnico" userEmail={session.user.email ?? ''} onLogout={logout}><TechnicianPortal companyId={membership.company_id} userId={session.user.id} membership={membership} /></AppShell>;
 
-  if (session && membership?.role === 'customer') return <CustomerPortal companyId={membership.company_id} userId={session.user.id} membership={membership} />;
+  if (session && membership?.role === 'customer') return <AppShell navItems={[{key:'gates',label:'Mis portones',icon:DoorOpen}]} activeSection="gates" onNavigate={()=>{}} brand="Portal cliente" userEmail={session.user.email ?? ''} onLogout={logout}><CustomerPortal companyId={membership.company_id} userId={session.user.id} membership={membership} /></AppShell>;
 
   if (!supabaseConfigured) return <div className="real-shell"><div className="real-panel"><h1>Conexión pendiente</h1><p>Faltan variables de entorno públicas de Supabase en este despliegue.</p><button onClick={onDemo}>Abrir demostración</button></div></div>;
 
