@@ -226,7 +226,7 @@
 .adm-shell--embedded { min-height: 0; }
 .adm-shell--embedded .adm-header { display: none; }
 .adm-shell--embedded .adm-layout { grid-template-columns: 1fr; max-width: 100%; margin: 0; }
-.adm-shell--embedded .adm-nav { display: none; }
+/* adm-nav visible in embedded mode — tab bar handled by admin.css */
 html[data-theme="dark"] .adm-shell--embedded { background: #0b1522; }
 html[data-theme="dark"] .appshell-sidebar {
   background: #07111e;
