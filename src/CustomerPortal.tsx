@@ -15,11 +15,13 @@ type Props = {
 const stateLabel: Record<string, string> = {
   operational: 'Operativo',
   with_observations: 'Con observaciones',
+  observations: 'Con observaciones',
   out_of_service: 'Fuera de servicio',
 };
 const stateClass: Record<string, string> = {
   operational: 'operational',
   with_observations: 'in_progress',
+  observations: 'in_progress',
   out_of_service: 'unassigned',
 };
 const serviceTypeLabel: Record<string, string> = {
