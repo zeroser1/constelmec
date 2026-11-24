@@ -19,6 +19,7 @@ function translateAuthError(message: string): string {
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(() => typeof window !== 'undefined' && (new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery' || new URLSearchParams(window.location.search).get('type') === 'recovery'));
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -28,13 +29,14 @@ export function useAuth() {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
     });
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  return { session, loading };
+  return { session, loading, passwordRecovery, setPasswordRecovery };
 }
 
 export async function signIn(email: string, password: string) {
@@ -55,4 +57,17 @@ export async function signOut() {
   // Drop every cached query so the next user in this tab never sees the
   // previous user's company/role/gates (keys are also user-scoped as backup).
   queryClient.clear();
+}
+
+export async function requestPasswordReset(email: string) {
+  if (!supabase) throw new Error('Supabase no está configurado.');
+  const redirectTo = new URL('/', window.location.origin).toString();
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
+export async function updatePassword(password: string) {
+  if (!supabase) throw new Error('Supabase no está configurado.');
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(translateAuthError(error.message));
 }
