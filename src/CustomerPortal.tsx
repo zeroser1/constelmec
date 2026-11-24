@@ -104,12 +104,14 @@ function GateDetailPanel({gate, companyId, userId}: {gate: RealGate; companyId: 
     .sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start));
 
   const submittingRef = useRef(false);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const submit = () => {
     if (!body.trim() || submittingRef.current) return;
     submittingRef.current = true;
-    addObservation.mutate({gateId: gate.id, body: body.trim(), authorId: userId}, {
-      onSuccess: () => { setBody(''); setSent(true); setTimeout(() => setSent(false), 3000); },
+    const key = idempotencyKeyRef.current;
+    addObservation.mutate({gateId: gate.id, body: body.trim(), authorId: userId, idempotencyKey: key}, {
+      onSuccess: () => { setBody(''); setSent(true); idempotencyKeyRef.current = crypto.randomUUID(); setTimeout(() => setSent(false), 3000); },
       onSettled: () => { submittingRef.current = false; },
     });
   };

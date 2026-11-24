@@ -716,18 +716,22 @@ export function useGateObservations(companyId: string | undefined, gateId: strin
   });
 }
 
-// Mutation: submit a customer observation via direct insert (RLS allows all members).
+// Mutation: submit a customer observation via idempotent RPC.
 export function useObservationMutations(companyId: string | undefined) {
   const qc = useQueryClient();
   const addObservation = useMutation({
-    mutationFn: async ({ gateId, body, authorId }: { gateId: string; body: string; authorId: string }): Promise<void> => {
-      const { error } = await supabase!.from('customer_observations').insert({
-        company_id: companyId,
-        gate_id: gateId,
-        author_user_id: authorId,
-        body,
+    mutationFn: async ({ gateId, body, idempotencyKey }: { gateId: string; body: string; authorId: string; idempotencyKey: string }): Promise<void> => {
+      const { error } = await supabase!.rpc('customer_create_observation', {
+        p_company_id: companyId,
+        p_gate_id: gateId,
+        p_body: body,
+        p_idempotency_key: idempotencyKey,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(
+        error.message.includes('does not exist') || error.message.includes('no existe')
+          ? 'Función de observaciones en preparación.'
+          : error.message
+      );
     },
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['gate-observations', companyId, variables.gateId] });
