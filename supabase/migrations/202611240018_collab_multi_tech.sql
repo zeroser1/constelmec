@@ -7,7 +7,7 @@
 -- Fix: replace responsible_user_id=auth.uid() with service_order_technicians
 -- membership check — the same pattern already used correctly in tech_start_pilot_order.
 --
--- Schema change: live_inspection_heartbeats.UNIQUE(visit_id) → UNIQUE(visit_id,user_id)
+-- Schema change: live_inspection_heartbeats.PRIMARY KEY(visit_id) → PRIMARY KEY(visit_id,user_id)
 -- so each assigned technician maintains their own heartbeat row on the shared visit.
 --
 -- Does NOT modify:
@@ -23,8 +23,9 @@
 
 -- ─── 1. Schema: live_inspection_heartbeats — per-tech heartbeat rows ──────────
 
--- Drop the single-visit unique. Query pg_constraint by column expression so the DO block
--- works regardless of what Supabase auto-named it. Fails fast if something unexpected exists.
+-- Drop the single-visit constraint (PK or UNIQUE). Query pg_constraint by column expression
+-- so the DO block works regardless of name. Handles both contype='p' (PRIMARY KEY, as in
+-- production) and contype='u' (UNIQUE, as in some local dev setups).
 DO $$
 DECLARE _cname text;
 BEGIN
@@ -33,28 +34,28 @@ BEGIN
   JOIN pg_class t ON t.oid=c.conrelid
   JOIN pg_namespace n ON n.oid=t.relnamespace
   WHERE n.nspname='public' AND t.relname='live_inspection_heartbeats'
-    AND c.contype='u' AND array_length(c.conkey,1)=1
+    AND c.contype IN ('p','u') AND array_length(c.conkey,1)=1
     AND EXISTS(
       SELECT 1 FROM pg_attribute a
       WHERE a.attrelid=c.conrelid AND a.attnum=c.conkey[1] AND a.attname='visit_id'
-    );
+    )
+  LIMIT 1;
   IF _cname IS NOT NULL THEN
     EXECUTE format('ALTER TABLE public.live_inspection_heartbeats DROP CONSTRAINT %I', _cname);
   END IF;
 END $$;
 
--- Per-tech composite unique: one heartbeat row per (visit, tech).
--- PostgreSQL does not support ADD CONSTRAINT IF NOT EXISTS; guard with a DO block.
+-- Per-tech composite PRIMARY KEY: one heartbeat row per (visit, tech).
+-- Guard: only add PK if the table has none — avoids error on double-apply.
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint c
     JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE n.nspname='public' AND t.relname='live_inspection_heartbeats'
-      AND c.conname='live_inspection_heartbeats_visit_id_user_id_key'
+      AND c.contype='p'
   ) THEN
-    ALTER TABLE public.live_inspection_heartbeats
-      ADD CONSTRAINT live_inspection_heartbeats_visit_id_user_id_key UNIQUE (visit_id, user_id);
+    ALTER TABLE public.live_inspection_heartbeats ADD PRIMARY KEY (visit_id, user_id);
   END IF;
 END $$;
 
@@ -156,11 +157,11 @@ begin
    -- Concurrent first-insert won the race; re-fetch to detect conflict or confirm idempotency
    select * into v_original from public.inspection_controls where visit_id=p_visit_id and control_key=p_key;
    if not found then raise exception 'Error interno de concurrencia — reintentá la operación' using errcode='40001'; end if;
-   -- Results differ: force explicit correction flow instead of silent overwrite
-   if v_original.result IS DISTINCT FROM p_result then
-     raise exception 'Control guardado por otro técnico con resultado diferente — usá el formulario de corrección para modificarlo' using errcode='40001';
+   -- Result or note differs: force explicit correction flow instead of silent data loss
+   if v_original.result IS DISTINCT FROM p_result or v_original.note IS DISTINCT FROM v_note then
+     raise exception 'Control guardado por otro técnico con resultado o nota diferente — usá el formulario de corrección para modificarlo' using errcode='40001';
    end if;
-   -- Same result: idempotent, return
+   -- Same result and note: idempotent, return
    return v_original.id;
  end if;
  -- Pre-existing control: validate and insert correction
