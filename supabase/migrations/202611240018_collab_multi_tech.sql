@@ -44,9 +44,19 @@ BEGIN
 END $$;
 
 -- Per-tech composite unique: one heartbeat row per (visit, tech).
-ALTER TABLE public.live_inspection_heartbeats
-  ADD CONSTRAINT IF NOT EXISTS live_inspection_heartbeats_visit_id_user_id_key
-    UNIQUE (visit_id, user_id);
+-- PostgreSQL does not support ADD CONSTRAINT IF NOT EXISTS; guard with a DO block.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
+    WHERE n.nspname='public' AND t.relname='live_inspection_heartbeats'
+      AND c.conname='live_inspection_heartbeats_visit_id_user_id_key'
+  ) THEN
+    ALTER TABLE public.live_inspection_heartbeats
+      ADD CONSTRAINT live_inspection_heartbeats_visit_id_user_id_key UNIQUE (visit_id, user_id);
+  END IF;
+END $$;
 
 -- ─── 2. tech_live_heartbeat — auth via SOT membership ────────────────────────
 -- Was: WHERE v.responsible_user_id=auth.uid() (no SOT check at all in 016)
@@ -97,7 +107,8 @@ begin
  where o.id=p_order_id
    and o.inspection_visit_id=p_visit_id
    and o.status='in_progress'
-   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active);
+   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active)
+ for update of o;
  if v_company is null then raise exception 'Inspección no autorizada' using errcode='42501'; end if;
  if (select count(distinct control_key) from public.inspection_controls
      where visit_id=p_visit_id
@@ -128,25 +139,31 @@ begin
  where o.id=p_order_id
    and o.inspection_visit_id=p_visit_id
    and o.status='in_progress'
-   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active);
+   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active)
+ for update of o;
  if v_company is null then raise exception 'Inspección no autorizada' using errcode='42501'; end if;
  if p_key is null or length(trim(p_key))=0 or length(p_key)>80 or p_label is null or length(trim(p_label))=0 or length(p_label)>200 or length(coalesce(p_note,''))>1000 then raise exception 'Control inválido'; end if;
  v_note:=nullif(trim(p_note),'');
  if p_result = 'fault'::public.control_result and length(coalesce(v_note, '')) < 10 then raise exception 'Describí la falla con al menos 10 caracteres'; end if;
  select * into v_original from public.inspection_controls where visit_id=p_visit_id and control_key=p_key;
  if not found then
-   -- First save: atomic INSERT; ON CONFLICT guards the race where two techs save the same
-   -- control_key simultaneously and both reach this branch (removed write-lock makes this reachable).
+   -- First save attempt: atomic INSERT
    insert into public.inspection_controls(company_id,visit_id,control_key,control_label,result,note)
    values(v_company,p_visit_id,p_key,p_label,p_result,v_note)
    on conflict(visit_id,control_key) do nothing
    returning id into v_id;
    if v_id is not null then return v_id; end if;
-   -- Concurrent first-insert won the race; re-fetch and fall through to correction path.
+   -- Concurrent first-insert won the race; re-fetch to detect conflict or confirm idempotency
    select * into v_original from public.inspection_controls where visit_id=p_visit_id and control_key=p_key;
    if not found then raise exception 'Error interno de concurrencia — reintentá la operación' using errcode='40001'; end if;
+   -- Results differ: force explicit correction flow instead of silent overwrite
+   if v_original.result IS DISTINCT FROM p_result then
+     raise exception 'Control guardado por otro técnico con resultado diferente — usá el formulario de corrección para modificarlo' using errcode='40001';
+   end if;
+   -- Same result: idempotent, return
+   return v_original.id;
  end if;
- -- existing control (pre-existing or concurrent-race winner): validate and insert correction
+ -- Pre-existing control: validate and insert correction
  select coalesce((select corrected_result from public.inspection_corrections where inspection_control_id=v_original.id order by created_at desc,id desc limit 1),v_original.result) into v_current;
  if v_current='fault' and p_result<>'fault' then raise exception 'Para cambiar una falla, explicá la corrección en el formulario'; end if;
  insert into public.inspection_corrections(company_id,inspection_control_id,actor_user_id,corrected_result,reason,idempotency_key)
@@ -175,7 +192,8 @@ begin
  where o.id=p_order_id
    and o.inspection_visit_id=p_visit_id
    and o.status='in_progress'
-   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active);
+   and exists(select 1 from public.memberships m where m.user_id=auth.uid() and m.company_id=o.company_id and m.role='technician' and m.active)
+ for update of o;
  if v_company is null then raise exception 'Inspección no autorizada' using errcode='42501'; end if;
  select * into v_control from public.inspection_controls where visit_id=p_visit_id and control_key=p_key;
  if not found then raise exception 'Control inexistente'; end if;
