@@ -1,0 +1,3 @@
+-- seed.sql — intentionally empty.
+-- Test data is inserted and rolled back inside each test file (BEGIN … ROLLBACK).
+-- Do not add persistent test data here; it would pollute CI runs.
