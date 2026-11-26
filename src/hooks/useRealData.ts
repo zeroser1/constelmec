@@ -772,7 +772,8 @@ export function useMyTechnicianProfile(userId: string | undefined, companyId: st
         .from('technician_profiles')
         .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
         .eq('user_id', userId!)
-        .eq('company_id', companyId!)
+        .eq('active', true)
+        .limit(1)
         .maybeSingle();
       if (error) throw new Error(error.message);
       return unwrap<Technician | null>(data);
