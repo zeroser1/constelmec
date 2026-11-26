@@ -780,26 +780,32 @@ export function useMyTechnicianProfile(userId: string | undefined, companyId: st
   });
 }
 
-// Orders assigned to a technician via service_order_technicians.
-// Needs migration 010 (service_orders_member_read) for the embedded service_orders join.
+// Company-scoped technician access (migration 021). RLS authorizes only
+// technicians with an active company assignment, profile and membership.
+// Keep the legacy TechAssignedOrder wrapper for the portal's presentation.
 export function useMyAssignedOrders(companyId: string | undefined, techProfileId: string | undefined) {
   return useQuery({
     queryKey: ['my-assigned-orders', companyId, techProfileId],
     enabled: !!companyId && !!techProfileId && !!supabase,
     queryFn: async (): Promise<TechAssignedOrder[]> => {
       const { data, error } = await supabase!
-        .from('service_order_technicians')
+        .from('service_orders')
         .select(
-          'id,service_order_id,role,assigned_at,active,' +
-          'service_orders(id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,' +
-          'gates(code,description),facilities(name))',
+          'id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,' +
+          'gates(code,description),facilities(name)',
         )
         .eq('company_id', companyId!)
-        .eq('technician_id', techProfileId!)
-        .eq('active', true)
-        .order('assigned_at', { ascending: false });
+        .in('status', ['scheduled', 'in_progress', 'completed'])
+        .order('scheduled_start', { ascending: false });
       if (error) throw new Error(error.message);
-      return unwrap<TechAssignedOrder[]>(data);
+      return (data ?? []).map(order => ({
+        id: order.id,
+        service_order_id: order.id,
+        role: 'support' as const,
+        assigned_at: order.scheduled_start,
+        active: true,
+        service_orders: order,
+      })) as TechAssignedOrder[];
     },
   });
 }
@@ -818,7 +824,7 @@ export type CreateServiceOrderInput = {
   serviceType: string;
   scheduledStart: string; // ISO string
   scheduledEnd: string;   // ISO string
-  technicians?: ServiceOrderTechInput[];
+
 };
 
 export type CreateServiceOrderResult = {
@@ -850,31 +856,17 @@ export function useCreateServiceOrder() {
       const assignedTechs: string[] = [];
       const failedTechs: Array<{ technicianId: string; error: string }> = [];
 
-      for (const tech of input.technicians ?? []) {
-        const { error: assignError } = await supabase!.rpc('admin_assign_order_technician', {
-          p_company_id:    input.companyId,
-          p_order_id:      orderId,
-          p_technician_id: tech.technicianId,
-          p_role:          tech.role,
-        });
-        if (assignError) {
-          failedTechs.push({ technicianId: tech.technicianId, error: assignError.message });
-        } else {
-          assignedTechs.push(tech.technicianId);
-        }
-      }
-
+      // Company authorization replaces order-by-order technician assignment.
+      // Scheduling no longer depends on service_order_technicians.
       let scheduled = false;
-      if (assignedTechs.length > 0) {
-        const { error: schedError } = await supabase!.rpc('admin_schedule_service_order', {
-          p_company_id: input.companyId,
-          p_order_id:   orderId,
-        });
-        if (schedError) {
-          failedTechs.push({ technicianId: '__schedule__', error: schedError.message });
-        } else {
-          scheduled = true;
-        }
+      const { error: schedError } = await supabase!.rpc('admin_schedule_service_order', {
+        p_company_id: input.companyId,
+        p_order_id:   orderId,
+      });
+      if (schedError) {
+        failedTechs.push({ technicianId: '__schedule__', error: schedError.message });
+      } else {
+        scheduled = true;
       }
 
       return { orderId, assignedTechs, failedTechs, scheduled };
