@@ -19,7 +19,6 @@ as $$
       join public.companies c
         on c.id = p_company and c.active = true
       where tp.user_id = (select auth.uid())
-        and tp.company_id = p_company
         and tp.active = true
     );
 $$;
@@ -108,7 +107,7 @@ begin
     old_definition := pg_get_functiondef(f.oid);
     new_definition := regexp_replace(
       old_definition, join_pattern,
-      'join public.technician_profiles t on t.user_id = auth.uid() and t.company_id = o.company_id and t.active and app_private.tech_can_access_company(o.company_id)',
+      'join public.technician_profiles t on t.user_id = auth.uid() and t.active and app_private.tech_can_access_company(o.company_id)',
       'gi'
     );
     if new_definition = old_definition or new_definition ilike '%service_order_technicians%' then
