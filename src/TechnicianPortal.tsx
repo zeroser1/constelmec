@@ -24,7 +24,6 @@ const statusLabel: Record<string, string> = {
   unassigned: 'Sin asignar', scheduled: 'Programado', in_progress: 'En curso',
   completed: 'Finalizado', rescheduled: 'Reprogramado', cancelled: 'Cancelado',
 };
-const roleLabel = (role: string) => role === 'lead' ? 'Principal' : 'Apoyo';
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-AR', {hour: '2-digit', minute: '2-digit'});
@@ -140,7 +139,6 @@ function OrderCard({item,companyId,onNavigate}: {item: TechAssignedOrder;company
   return (
     <div className={`tech-order-card tech-order-card--${o.status}`}>
       <div className="tech-order-top">
-        <span className={`tech-role-badge tech-role-badge--${item.role}`}>{roleLabel(item.role)}</span>
         <span className={'adm-status ' + o.status}>{statusLabel[o.status] ?? o.status}</span>
       </div>
       <div className="tech-order-type">
@@ -192,7 +190,7 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
     <div className="tech-no-profile">
       <CalendarDays size={34}/>
       <h2>Sin mantenimientos registrados</h2>
-      <p>Iniciá un mantenimiento desde la pestaña de portones; también aparecerán aquí los trabajos finalizados.</p>
+      <p>Las órdenes programadas para esta empresa aparecerán aquí, junto con los trabajos finalizados.</p>
     </div>
   );
 
@@ -264,7 +262,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
   if (gates.length === 0) return <p className="cust-empty">No hay portones registrados.</p>;
   return (
     <div className="tech-gates-list">
-      <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
+      <p>Seleccioná un portón de tu empresa para continuar un trabajo en curso o iniciar un mantenimiento espontáneo.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
       {!selected && pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
       {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setSelected(null);setActiveVisitId(null);setInspDone(false);onNavigate()}}/>}
