@@ -261,3 +261,55 @@ begin
   return jsonb_build_object('photo_id',v_id,'storage_path',v_path,'bucket','maintenance-evidence');
 end;
 $$;
+
+-- Prevent a revoked technician from confirming a previously reserved photo.
+create or replace function public.tech_confirm_maintenance_photo(p_photo_id uuid)
+returns void language plpgsql security definer set search_path = ''
+as $$
+declare p public.maintenance_photos%rowtype; obj storage.objects%rowtype;
+begin
+  select * into p from public.maintenance_photos
+  where id=p_photo_id and uploaded_by=auth.uid() for update;
+  if not found then raise exception 'Photo reservation not found'; end if;
+  if not app_private.tech_can_access_company(p.company_id) then
+    raise exception 'Technician no longer enabled for company' using errcode='42501';
+  end if;
+  if p.upload_status='confirmed' then return; end if;
+  if not exists (
+    select 1 from public.service_orders o
+    join public.visits v on v.id=p.visit_id and v.company_id=p.company_id
+      and v.gate_id=p.gate_id
+    where o.id=p.service_order_id and o.inspection_visit_id=v.id
+      and o.status='in_progress' and v.status='in_progress'
+  ) then raise exception 'Inspection closed'; end if;
+  select * into obj from storage.objects
+  where bucket_id='maintenance-evidence' and name=p.storage_path;
+  if not found then raise exception 'File not uploaded'; end if;
+  if coalesce((obj.metadata->>'size')::bigint,-1) <> p.file_size_bytes then
+    raise exception 'Uploaded file size mismatch';
+  end if;
+  update public.maintenance_photos
+    set upload_status='confirmed',storage_confirmed_at=now()
+    where id=p_photo_id;
+end;
+$$;
+
+-- Gate history is SECURITY DEFINER; tighten its own authorization without
+-- changing the latest 020 report body (repairs/corrected notes included).
+do $history$
+declare
+  old_definition text;
+  new_definition text;
+begin
+  old_definition := pg_get_functiondef('public.gate_inspection_history(uuid)'::regprocedure);
+  new_definition := replace(
+    old_definition,
+    'and m.role in (''technician'',''admin'',''customer'')',
+    'and (m.role in (''admin'',''customer'') or (m.role = ''technician'' and app_private.tech_can_access_company(g.company_id)))'
+  );
+  if old_definition = new_definition then
+    raise exception 'Migration 021: gate_inspection_history authorization requires manual review';
+  end if;
+  execute new_definition;
+end
+$history$;
