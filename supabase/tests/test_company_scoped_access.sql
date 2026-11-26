@@ -1,5 +1,5 @@
 -- DEV ONLY. Apply migrations 019, 020 and 021 before running.
--- Read-only regression assertions. No production writes, no persistent changes.
+-- Transactional DEV regression assertions. No persistent changes (ROLLBACK).
 begin;
 do $test$
 declare
@@ -84,6 +84,42 @@ begin
   raise notice 'PASS (RLS): Lion sees ACME order without service_order_technicians row';
 end
 $rls$;
+
+-- DEV transaction-only revocation test; rollback restores the assignment.
+reset role;
+do $revoke$
+declare v_tech uuid;
+begin
+  select tp.id into v_tech
+  from public.technician_profiles tp
+  where tp.user_id=current_setting('test.lion_user')::uuid and tp.active
+  limit 1;
+  update public.technician_company_assignments
+    set active=false
+  where technician_id=v_tech
+    and company_id=current_setting('test.acme_company')::uuid;
+  if not found then raise exception 'BLOCKED: no active company assignment to revoke'; end if;
+  perform set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
+  if app_private.tech_can_access_company(current_setting('test.acme_company')::uuid) then
+    raise exception 'FAIL: revoked Lion still authorized';
+  end if;
+  raise notice 'PASS: revocation denies company helper';
+end
+$revoke$;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
+do $rls_revoked$
+declare v_visible integer;
+begin
+  select count(*) into v_visible from public.service_orders
+  where id=current_setting('test.fixture_order')::uuid;
+  if v_visible <> 0 then
+    raise exception 'FAIL: revoked Lion still sees service order through RLS';
+  end if;
+  raise notice 'PASS: revocation denies service_orders RLS';
+end
+$rls_revoked$;
 rollback;
 
 -- Additional E2E steps requiring authenticated browser sessions:
