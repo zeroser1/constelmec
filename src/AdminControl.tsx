@@ -144,7 +144,7 @@ function AdminObservationsSection({companyId}:{companyId:string|undefined}){
   </div>)}
  </div>;
 }
-export default function AdminControl({companies,orders,technicians=[],demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
+export default function AdminControl({companies,orders,demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
  const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'|'live'|'observations'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedReport,setExpandedReport]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
  const allCompanies=demoMode?sampleCompanies:companies;const allOrders=demoMode?demo.orders:orders;
  const filtered=useMemo(()=>allOrders.filter(o=>company==='all'||o.company_id===company),[allOrders,company]);
