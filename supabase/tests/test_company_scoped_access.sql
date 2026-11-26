@@ -38,6 +38,9 @@ begin
     raise exception 'BLOCKED: no Guilliman-only order available for the regression';
   end if;
 
+  perform set_config('test.lion_user',v_lion::text,true);
+  perform set_config('test.acme_company',v_company::text,true);
+  perform set_config('test.fixture_order',v_order::text,true);
   perform set_config('request.jwt.claim.sub',v_lion::text,true);
   if not app_private.tech_can_access_company(v_company) then
     raise exception 'FAIL: Lion with active company assignment denied';
@@ -64,6 +67,23 @@ begin
   raise notice 'PASS (read-only): company assignment, cross-company denial, six RPC guards, and legacy order fixture';
 end
 $test$;
+
+-- Assert the actual RLS read path under the authenticated PostgREST role.
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
+do $rls$
+declare
+  v_visible integer;
+begin
+  select count(*) into v_visible from public.service_orders
+  where id=current_setting('test.fixture_order')::uuid
+    and company_id=current_setting('test.acme_company')::uuid;
+  if v_visible <> 1 then
+    raise exception 'FAIL: Lion cannot see Guilliman-only order through service_orders RLS';
+  end if;
+  raise notice 'PASS (RLS): Lion sees ACME order without service_order_technicians row';
+end
+$rls$;
 rollback;
 
 -- Additional E2E steps requiring authenticated browser sessions:
