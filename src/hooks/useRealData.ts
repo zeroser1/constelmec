@@ -790,22 +790,20 @@ export function useMyAssignedOrders(companyId: string | undefined, techProfileId
     queryFn: async (): Promise<TechAssignedOrder[]> => {
       const { data, error } = await supabase!
         .from('service_orders')
-        .select(
-          'id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,' +
-          'gates(code,description),facilities(name)',
-        )
+        .select('id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,gates(code,description),facilities(name)')
         .eq('company_id', companyId!)
         .in('status', ['scheduled', 'in_progress', 'completed'])
         .order('scheduled_start', { ascending: false });
       if (error) throw new Error(error.message);
-      return (data ?? []).map(order => ({
+      const orders = unwrap<NonNullable<TechAssignedOrder['service_orders']>[]>(data ?? []);
+      return orders.map(order => ({
         id: order.id,
         service_order_id: order.id,
         role: 'support' as const,
         assigned_at: order.scheduled_start,
         active: true,
         service_orders: order,
-      })) as TechAssignedOrder[];
+      }));
     },
   });
 }
