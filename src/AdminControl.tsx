@@ -3,9 +3,8 @@ import GateHistory from './GateHistory';
 import {useEffect,useMemo,useState} from 'react';import AppShell from './AppShell';
 import {AlertTriangle,Building2,CalendarDays,ChevronDown,ChevronLeft,ChevronRight,ClipboardList,Clock3,HardHat,LayoutDashboard,MapPin,MessageSquare,Plus,Users,Wrench,X} from 'lucide-react';
 import {supabase} from './lib/supabase';
-import {useOrderTechnicians,useOrderTechnicianMutations,useTechnicianProfiles,useFacilities,useAdminGates,useCreateServiceOrder} from './hooks/useRealData';
+import {useFacilities,useAdminGates,useCreateServiceOrder} from './hooks/useRealData';
 import type {CreateServiceOrderResult} from './hooks/useRealData';
-import type {OrderTechnicianRole} from './lib/types';
 import './admin.css';
 import ContactManager from './ContactManager';
 import TechnicianManager from './TechnicianManager';
@@ -38,55 +37,18 @@ function samples():{orders:ServiceOrder[];techs:Technician[]}{
  return {orders,techs};
 }
 const demo=samples();
-function OrderTechPanel({order,demoMode,allTechs}:{order:ServiceOrder;demoMode:boolean;allTechs:Technician[]}){
-  const {data:techs=[],isLoading}=useOrderTechnicians(demoMode?undefined:order.company_id,demoMode?undefined:order.id);
-  const {assignTechnician,removeTechnician}=useOrderTechnicianMutations();
-  const techProfiles=useTechnicianProfiles(demoMode?undefined:order.company_id);
-  const [addOpen,setAddOpen]=useState(false);
-  const [selTech,setSelTech]=useState('');
-  const [selRole,setSelRole]=useState<OrderTechnicianRole>('support');
-  const isClosed=order.status==='completed'||order.status==='cancelled';
-  const demoList=order.technician_profiles?[{id:'demo',service_order_id:order.id,technician_id:'',company_id:order.company_id,role:'lead' as OrderTechnicianRole,assigned_at:'',active:true,technician_profiles:{first_name:order.technician_profiles.first_name,last_name:order.technician_profiles.last_name,specialty:null as string|null}}]:[];
-  const display=demoMode?demoList:techs;
-  const available=(demoMode?allTechs.filter(t=>t.company_id===order.company_id):techProfiles.data??[]).filter(t=>t.active);
-  return <div className="adm-tech-panel">
-    {isLoading&&<span className="adm-empty">Cargando…</span>}
-    {!isLoading&&display.length===0&&<span className="adm-empty">Sin técnicos asignados.</span>}
-    {display.map(t=><div key={t.id} className="adm-tech-row">
-      <span className={`adm-role adm-role--${t.role}`}>{t.role==='lead'?'Principal':'Apoyo'}</span>
-      <span className="adm-tech-name">{t.technician_profiles?.first_name} {t.technician_profiles?.last_name}</span>
-      {!demoMode&&!isClosed&&<button className="adm-tech-remove" title="Quitar" onClick={()=>removeTechnician.mutate({companyId:order.company_id,orderId:order.id,technicianId:t.technician_id})}>×</button>}
-    </div>)}
-    {!demoMode&&!isClosed&&!addOpen&&<button className="adm-tech-add" onClick={()=>{setAddOpen(true);setSelTech('');setSelRole('support');}}>+ Asignar técnico</button>}
-    {addOpen&&<div className="adm-tech-form">
-      <select value={selTech} onChange={e=>setSelTech(e.target.value)}>
-        <option value="">Técnico…</option>
-        {available.map(t=><option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
-      </select>
-      <select value={selRole} onChange={e=>setSelRole(e.target.value as OrderTechnicianRole)}>
-        <option value="support">Apoyo</option>
-        <option value="lead">Principal</option>
-      </select>
-      <button disabled={!selTech||assignTechnician.isPending} onClick={()=>{if(!selTech)return;assignTechnician.mutate({companyId:order.company_id,orderId:order.id,technicianId:selTech,role:selRole},{onSuccess:()=>setAddOpen(false)});}}>Asignar</button>
-      <button onClick={()=>setAddOpen(false)}>Cancelar</button>
-    </div>}
-  </div>;
-}
-function NewOrderModal({companies,technicians,defaultCompanyId,defaultDate,onClose}:{companies:Company[];technicians:Technician[];defaultCompanyId:string;defaultDate:string;onClose:()=>void}){
+function NewOrderModal({companies,defaultCompanyId,defaultDate,onClose}:{companies:Company[];defaultCompanyId:string;defaultDate:string;onClose:()=>void}){
   const {createOrder}=useCreateServiceOrder();
   const [cId,setCId]=useState(defaultCompanyId!=='all'?defaultCompanyId:(companies[0]?.id??''));
   const [facId,setFacId]=useState('');const [gateId,setGateId]=useState('');const [svcType,setSvcType]=useState('');
   const [startDt,setStartDt]=useState(defaultDate+'T09:00');const [endDt,setEndDt]=useState(defaultDate+'T11:00');
-  const [techSel,setTechSel]=useState<Record<string,OrderTechnicianRole>>({});
   const [result,setResult]=useState<CreateServiceOrderResult|null>(null);const [err,setErr]=useState('');
   const facilitiesQ=useFacilities(cId||undefined);const gatesQ=useAdminGates(facId||undefined,cId||undefined);
   const activeFacs=(facilitiesQ.data??[]).filter(f=>f.active);const activeGates=(gatesQ.data??[]).filter(g=>g.active);
-  const availTechs=technicians.filter(t=>t.company_id===cId&&t.active);
-  const changeCo=(id:string)=>{setCId(id);setFacId('');setGateId('');setTechSel({});};
+  const changeCo=(id:string)=>{setCId(id);setFacId('');setGateId('');};
   const changeFac=(id:string)=>{setFacId(id);setGateId('');};
-  const toggleTech=(id:string)=>setTechSel(p=>{if(id in p){const{[id]:_,...r}=p;return r;}return{...p,[id]:'support' as OrderTechnicianRole};});
   const canSub=!createOrder.isPending&&!!cId&&!!facId&&!!gateId&&!!svcType&&!!startDt&&!!endDt;
-  const submit=async()=>{setErr('');setResult(null);const techs=Object.entries(techSel).map(([technicianId,role])=>({technicianId,role}));try{const r=await createOrder.mutateAsync({companyId:cId,facilityId:facId,gateId,serviceType:svcType,scheduledStart:new Date(startDt).toISOString(),scheduledEnd:new Date(endDt).toISOString(),technicians:techs});setResult(r);}catch(e:unknown){setErr(e instanceof Error?e.message:'Error al crear la orden');}};
+  const submit=async()=>{setErr('');setResult(null);try{const r=await createOrder.mutateAsync({companyId:cId,facilityId:facId,gateId,serviceType:svcType,scheduledStart:new Date(startDt).toISOString(),scheduledEnd:new Date(endDt).toISOString()});setResult(r);}catch(e:unknown){setErr(e instanceof Error?e.message:'Error al crear la orden');}};
   const bd={position:'fixed',inset:0,background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:16} as const;
   const box={background:'white',borderRadius:14,width:'100%',maxWidth:520,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.3)',fontFamily:'Arial,Helvetica,sans-serif',padding:'24px 24px 28px'} as const;
   const sel={width:'100%',padding:'8px 10px',border:'1px solid #d1dbe5',borderRadius:8,fontSize:14,marginTop:4,display:'block'} as const;
@@ -95,7 +57,7 @@ function NewOrderModal({companies,technicians,defaultCompanyId,defaultDate,onClo
     <div style={bd} onClick={onClose}><div style={box} onClick={e=>e.stopPropagation()}>
       <h2 style={{margin:'0 0 16px',fontSize:19,fontWeight:800,color:'#10263e'}}>Orden creada</h2>
       <p style={{fontSize:13,color:'#4a5e6d',wordBreak:'break-all',marginBottom:6}}>ID: {result.orderId}</p>
-      <p style={{fontSize:14,color:result.scheduled?'#1a7a3f':'#b05000',margin:'0 0 12px'}}>{result.scheduled?'✓ Programada con técnicos asignados.':result.assignedTechs.length>0?'Creada, pero no se pudo programar (ver errores abajo).':'Creada sin técnicos (sin asignar).'}</p>
+      <p style={{fontSize:14,color:result.scheduled?'#1a7a3f':'#b05000',margin:'0 0 12px'}}>{result.scheduled?'✓ Orden programada. Los técnicos habilitados para esta empresa pueden atenderla.':'Orden creada, pero no se pudo programar (ver errores abajo).'}</p>
       {result.failedTechs.length>0&&<div style={{background:'#fff3cd',border:'1px solid #f0c040',borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13}}><strong>Asignaciones fallidas:</strong><ul style={{margin:'6px 0 0',paddingLeft:18}}>{result.failedTechs.map(f=><li key={f.technicianId}>{f.technicianId==='__schedule__'?'Cambio de estado':f.technicianId.slice(0,8)+'…'}: {f.error}</li>)}</ul></div>}
       <button onClick={onClose} style={{padding:'9px 20px',background:'#1a5eb8',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>Cerrar</button>
     </div></div>
@@ -114,14 +76,6 @@ function NewOrderModal({companies,technicians,defaultCompanyId,defaultDate,onClo
         <label style={lbl}>Inicio<input type="datetime-local" style={sel} value={startDt} onChange={e=>setStartDt(e.target.value)}/></label>
         <label style={lbl}>Fin<input type="datetime-local" style={sel} value={endDt} onChange={e=>setEndDt(e.target.value)}/></label>
       </div>
-      {availTechs.length>0&&<fieldset style={{border:'1px solid #d1dbe5',borderRadius:8,padding:'10px 14px',marginBottom:12}}>
-        <legend style={{fontSize:13,fontWeight:600,color:'#4a5e6d',padding:'0 6px'}}>Técnicos (opcional)</legend>
-        {availTechs.map(t=><div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0'}}>
-          <input type="checkbox" id={'tech-'+t.id} checked={t.id in techSel} onChange={()=>toggleTech(t.id)} style={{cursor:'pointer'}}/>
-          <label htmlFor={'tech-'+t.id} style={{fontSize:14,color:'#10263e',cursor:'pointer',flex:1}}>{t.first_name} {t.last_name}{t.specialty?<span style={{fontSize:12,color:'#8295a8',marginLeft:6}}>({t.specialty})</span>:null}</label>
-          {t.id in techSel&&<select value={techSel[t.id]} onChange={e=>setTechSel(p=>({...p,[t.id]:e.target.value as OrderTechnicianRole}))} style={{padding:'4px 8px',border:'1px solid #d1dbe5',borderRadius:6,fontSize:13}}><option value="support">Apoyo</option><option value="lead">Principal</option></select>}
-        </div>)}
-      </fieldset>}
       {err&&<p style={{color:'#c0392b',fontSize:13,margin:'0 0 12px'}}>{err}</p>}
       <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
         <button onClick={onClose} style={{padding:'9px 20px',background:'white',border:'1px solid #d1dbe5',borderRadius:8,cursor:'pointer',fontSize:14,color:'#4a5e6d'}}>Cancelar</button>
@@ -191,7 +145,7 @@ function AdminObservationsSection({companyId}:{companyId:string|undefined}){
  </div>;
 }
 export default function AdminControl({companies,orders,technicians=[],demoMode=false,email,onLogout,embedded=false}:{companies:Company[];orders:ServiceOrder[];technicians?:Technician[];demoMode?:boolean;email?:string;onLogout?:()=>void;embedded?:boolean}){
- const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'|'live'|'observations'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedOrder,setExpandedOrder]=useState<string|null>(null);const [expandedReport,setExpandedReport]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
+ const [company,setCompany]=useState('all');const [section,setSection]=useState<'overview'|'calendar'|'contacts'|'technicians'|'live'|'observations'>('overview');const [selected,setSelected]=useState(dayKey(new Date()));const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));const [expandedReport,setExpandedReport]=useState<string|null>(null);const [newOrderOpen,setNewOrderOpen]=useState(false);
  const allCompanies=demoMode?sampleCompanies:companies;const allOrders=demoMode?demo.orders:orders;
  const filtered=useMemo(()=>allOrders.filter(o=>company==='all'||o.company_id===company),[allOrders,company]);
 
@@ -202,7 +156,7 @@ export default function AdminControl({companies,orders,technicians=[],demoMode=f
  const daysInMonth=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();const start=(new Date(month.getFullYear(),month.getMonth(),1).getDay()+6)%7;
  const companyName=(id:string)=>allCompanies.find(c=>c.id===id)?.name||'Empresa';
  const cards=[{label:'Servicios hoy',value:todayOrders.length,icon:CalendarDays},{label:'En curso',value:filtered.filter(o=>o.status==='in_progress').length,icon:Wrench},{label:'Próximos 7 días',value:upcoming.filter(o=>(new Date(o.scheduled_start).getTime()-Date.now())<7*86400000).length,icon:Clock3},{label:'Vencidos',value:overdue.length,icon:AlertTriangle}];
- const orderCard=(o:ServiceOrder)=>{const exp=expandedOrder===o.id;const expReport=expandedReport===o.id;return <article className={'adm-order'+(exp?' adm-order--expanded':'')} key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><button className="adm-order-tech-toggle" onClick={()=>setExpandedOrder(exp?null:o.id)}><HardHat size={14}/>{exp?'Ocultar técnicos':(o.technician_profiles?o.technician_profiles.first_name+' '+o.technician_profiles.last_name:'Sin técnico · Ver asignaciones')}<ChevronDown size={12} style={{transform:exp?'rotate(180deg)':'none'}}/></button>{exp&&<OrderTechPanel order={o} demoMode={demoMode} allTechs={technicians}/>}{o.status==='completed'&&o.gate_id&&<button className="adm-order-tech-toggle" style={{marginTop:4}} onClick={()=>setExpandedReport(expReport?null:o.id)}><ClipboardList size={14}/>{expReport?'Ocultar informe de inspección':'Ver informe de inspección'}<ChevronDown size={12} style={{transform:expReport?'rotate(180deg)':'none'}}/></button>}{expReport&&o.gate_id&&<GateHistory gateId={o.gate_id} orderId={o.id} companyId={o.company_id}/>}</article>;};
+ const orderCard=(o:ServiceOrder)=>{const expReport=expandedReport===o.id;return <article className="adm-order" key={o.id}><div className="adm-order-top"><strong>{companyName(o.company_id)}</strong><span className={'adm-status '+o.status}>{statusLabel[o.status]||o.status}</span></div><p><Clock3 size={14}/> {dateTime(o.scheduled_start)} · {serviceType[o.service_type]||o.service_type}</p><p><MapPin size={14}/> {o.facilities?.name||'Instalación'} · {o.gates?.code||'Portón'}</p><p className="adm-empty" style={{margin:'6px 0'}}>Acceso técnico por empresa · Participantes en el informe de mantenimiento</p>{o.status==='completed'&&o.gate_id&&<button className="adm-order-tech-toggle" style={{marginTop:4}} onClick={()=>setExpandedReport(expReport?null:o.id)}><ClipboardList size={14}/>{expReport?'Ocultar informe de inspección':'Ver informe de inspección'}<ChevronDown size={12} style={{transform:expReport?'rotate(180deg)':'none'}}/></button>}{expReport&&o.gate_id&&<GateHistory gateId={o.gate_id} orderId={o.id} companyId={o.company_id}/>}</article>;};
  const useShell=!demoMode&&!!onLogout;const shellNavItems=[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'observations',label:'Observaciones',icon:MessageSquare},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}];const _shell=<div className={"adm-shell"+(useShell||embedded?" adm-shell--embedded":"")}><header className="adm-header"><div className="adm-brand"><span className="adm-brand-mark" aria-hidden="true"/>CONSTELMEC</div><span className="adm-subtitle">CENTRO DE CONTROL</span></header><div className="adm-layout"><nav className="adm-nav" aria-label="Administración">{[{key:'live',label:'Trabajos',icon:Wrench},{key:'overview',label:'Resumen',icon:LayoutDashboard},{key:'calendar',label:'Calendario',icon:CalendarDays},{key:'observations',label:'Observaciones',icon:MessageSquare},{key:'contacts',label:'Contactos',icon:Users},{key:'technicians',label:'Técnicos',icon:HardHat}].map(({key,label,icon:Icon})=><button key={key} className={section===key?'active':''} onClick={()=>setSection(key as typeof section)}><Icon size={19}/>{label}</button>)}</nav><main className="adm-main"><div className="adm-heading"><div><small>OPERACIONES / {section==='overview'?'RESUMEN':section==='calendar'?'CALENDARIO':section==='contacts'?'CONTACTOS':section==='live'?'TRABAJOS':section==='observations'?'OBSERVACIONES':'TÉCNICOS'}</small><h1>{section==='overview'?'Centro de control':section==='calendar'?'Agenda de servicios':section==='contacts'?'Contactos':section==='live'?'Trabajos en curso':section==='observations'?'Observaciones de clientes':'Equipo técnico'}</h1></div>{demoMode&&<span className="adm-demo">DATOS DE DEMOSTRACIÓN</span>}</div>{(section==='overview'||section==='calendar'||section==='live'||section==='observations')&&<label className="adm-company"><Building2 size={18}/><span>Empresa</span><select value={company} onChange={e=>setCompany(e.target.value)}><option value="all">Todas las empresas</option>{allCompanies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
  {section==='live'&&!demoMode&&<WorkDashboard orders={filtered} companyId={company==='all'?undefined:company}/>}
  {section==='live'&&demoMode&&<p>El seguimiento en vivo solo está disponible con sesiones reales.</p>}
@@ -211,5 +165,5 @@ export default function AdminControl({companies,orders,technicians=[],demoMode=f
  {section==='contacts'&&<ContactManager companies={allCompanies}/>}
  {section==='technicians'&&<TechnicianManager companies={allCompanies}/>}
  {section==='observations'&&<AdminObservationsSection companyId={company==='all'?undefined:company}/>}
- {newOrderOpen&&!demoMode&&<NewOrderModal companies={allCompanies} technicians={technicians} defaultCompanyId={company} defaultDate={selected} onClose={()=>setNewOrderOpen(false)}/>}<p className="adm-footnote">{demoMode?'Información ficticia: las acciones no modifican Supabase.':'Datos reales de Supabase.'}</p></main></div></div>;return useShell?<AppShell navItems={shellNavItems} activeSection={section} onNavigate={k=>setSection(k as typeof section)} brand="Centro de Control" userEmail={email??''} onLogout={onLogout!}>{_shell}</AppShell>:_shell;
+ {newOrderOpen&&!demoMode&&<NewOrderModal companies={allCompanies} defaultCompanyId={company} defaultDate={selected} onClose={()=>setNewOrderOpen(false)}/>}<p className="adm-footnote">{demoMode?'Información ficticia: las acciones no modifican Supabase.':'Datos reales de Supabase.'}</p></main></div></div>;return useShell?<AppShell navItems={shellNavItems} activeSection={section} onNavigate={k=>setSection(k as typeof section)} brand="Centro de Control" userEmail={email??''} onLogout={onLogout!}>{_shell}</AppShell>:_shell;
 }
