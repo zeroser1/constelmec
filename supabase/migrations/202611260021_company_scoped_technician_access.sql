@@ -312,3 +312,64 @@ begin
   execute new_definition;
 end
 $history$;
+
+-- Company revocation is the source of truth. Do not block deactivation merely
+-- because an obsolete order-assignment row is in progress. Historical rows
+-- for completed/cancelled orders are retained.
+create or replace function public.admin_set_technician_company(
+  p_company_id uuid, p_technician_id uuid, p_active boolean
+)
+returns void language plpgsql security definer set search_path = ''
+as $$
+declare v_tech_company uuid;
+begin
+  if not (app_private.is_platform_admin()
+      or app_private.has_membership(p_company_id, array['admin']::public.member_role[])) then
+    raise exception 'permission denied' using errcode='42501';
+  end if;
+  if not exists (select 1 from public.companies where id=p_company_id and active) then
+    raise exception 'company not found or inactive' using errcode='P0002';
+  end if;
+  select company_id into v_tech_company from public.technician_profiles
+  where id=p_technician_id and active;
+  if not found then raise exception 'technician not found or inactive' using errcode='P0002'; end if;
+  if (v_tech_company is null or v_tech_company <> p_company_id)
+      and not app_private.is_platform_admin() then
+    raise exception 'cross-company technician enablement requires platform administrator access'
+      using errcode='42501';
+  end if;
+
+  perform id from public.technician_company_assignments
+    where technician_id=p_technician_id and company_id=p_company_id
+    for update;
+
+  if not p_active then
+    update public.service_order_technicians sot
+      set active=false,removed_at=now(),removed_by=auth.uid()
+    from public.service_orders so
+    where sot.service_order_id=so.id
+      and sot.technician_id=p_technician_id
+      and sot.company_id=p_company_id and sot.active=true
+      and so.status not in ('completed','cancelled');
+
+    update public.technician_facility_assignments
+      set active=false
+    where technician_id=p_technician_id and company_id=p_company_id;
+  end if;
+
+  insert into public.technician_company_assignments
+    (technician_id,company_id,active)
+  values (p_technician_id,p_company_id,p_active)
+  on conflict (technician_id,company_id)
+  do update set active=excluded.active;
+
+  insert into public.audit_events
+    (company_id,actor_user_id,event_type,event_payload,idempotency_key)
+  values (p_company_id,auth.uid(),
+    case when p_active then 'technician_company_enabled'
+         else 'technician_company_disabled' end,
+    jsonb_build_object('technician_id',p_technician_id,'company_id',p_company_id,
+      'cross_company',(v_tech_company is null or v_tech_company <> p_company_id)),
+    gen_random_uuid());
+end;
+$$;
