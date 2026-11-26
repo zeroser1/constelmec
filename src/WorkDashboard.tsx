@@ -2,7 +2,6 @@ import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {Activity,CalendarDays,CheckCircle2,Clock3,DoorOpen,HardHat,MapPin,ShieldAlert,Wrench} from 'lucide-react';
 import {supabase} from './lib/supabase';
-import {useCompanyOrderTechnicians} from './hooks/useRealData';
 import GateHistory from './GateHistory';
 import type {ServiceOrder} from './AdminControl';
 
@@ -49,17 +48,6 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
 
  const liveByOrderId=new Map((liveQ.data??[]).map(r=>[r.order_id,r]));
  const now=Date.now();
-
- // Build order→technicians map from service_order_technicians (source of truth for new orders)
- const orderTechsQ=useCompanyOrderTechnicians(companyId);
- const orderTechMap=new Map<string,{id:string;name:string}[]>();
- for(const e of orderTechsQ.data??[]){
-  const name=e.technician_profiles?`${e.technician_profiles.first_name} ${e.technician_profiles.last_name}`:'';
-  if(!name)continue;
-  const list=orderTechMap.get(e.service_order_id)??[];
-  list.push({id:e.technician_id,name});
-  orderTechMap.set(e.service_order_id,list);
- }
 
  const withTech=orders;
 
@@ -143,7 +131,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
      const isConnected=live?now-new Date(live.last_seen_at).getTime()<=60000:false;
      const done=live?Number(live.controls_done):0;
      const total=live?Number(live.controls_total):8;
-     const techName=live?.technician_name||(o.technician_profiles?`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`:null)||orderTechMap.get(o.id)?.[0]?.name||'Sin actividad reciente';
+     const techName=live?.technician_name || 'Sin actividad reciente';
      return <article key={o.id} style={{...card,borderLeft:`4px solid ${isConnected?'#166534':'#92400e'}`}}>
       <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
        <strong style={{fontSize:15}}><DoorOpen size={14} style={{verticalAlign:'middle',marginRight:4}}/>{o.gates?.code??'—'} · {o.gates?.description??'Portón'}</strong>

@@ -66,10 +66,25 @@ export function useMembership(userId: string | undefined) {
       const { data, error } = await supabase!
         .from('memberships')
         .select('company_id,role,companies(name)')
+        .eq('user_id', userId!)
         .eq('active', true)
         .limit(1);
       if (error) throw new Error(error.message);
       return unwrap<Membership[]>(data)[0] ?? null;
+    },
+  });
+}
+
+export function useTechnicianCompanies(userId: string) {
+  return useQuery({
+    queryKey: ['technician-companies', userId],
+    enabled: !!userId && !!supabase,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<Array<{id: string; name: string}>> => {
+      const { data, error } = await supabase!.rpc('tech_list_accessible_companies');
+      if (error) throw new Error(error.message);
+      return unwrap<Array<{id: string; name: string}>>(data ?? []);
     },
   });
 }
@@ -528,6 +543,18 @@ export function useTechnicianProfiles(companyId: string | undefined) {
   });
 }
 
+export function useEnabledCompanyTechnicians(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['enabled-company-technicians', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<Array<Pick<Technician, 'id' | 'first_name' | 'last_name'>>> => {
+      const { data, error } = await supabase!.rpc('admin_list_enabled_company_technicians', {p_company: companyId});
+      if (error) throw new Error(error.message);
+      return unwrap<Array<Pick<Technician, 'id' | 'first_name' | 'last_name'>>>(data ?? []);
+    },
+  });
+}
+
 export function useTechnicianCompanyAssignments(companyId: string | undefined) {
   return useQuery({
     queryKey: ['tech-company-assignments', companyId],
@@ -576,6 +603,7 @@ export function useTechnicianMutations() {
     },
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['tech-company-assignments', variables.cId] });
+      qc.invalidateQueries({ queryKey: ['enabled-company-technicians', variables.cId] });
       // Disabling cascades to facility assignments via SQL trigger — refresh both.
       qc.invalidateQueries({ queryKey: ['tech-facility-assignments', variables.cId, variables.tId] });
     },
@@ -872,6 +900,7 @@ export function useCreateServiceOrder() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-data'] });
+      qc.invalidateQueries({ queryKey: ['platform-admin-data'] });
       qc.invalidateQueries({ queryKey: ['company-service-orders'] });
       qc.invalidateQueries({ queryKey: ['my-assigned-orders'] });
     },

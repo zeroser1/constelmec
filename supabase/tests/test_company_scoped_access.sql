@@ -1,133 +1,171 @@
--- DEV ONLY. Apply migrations 019, 020 and 021 before running.
--- Transactional DEV regression assertions. No persistent changes (ROLLBACK).
+-- DEV only. Self-contained fixture with no real accounts or persistent changes.
 begin;
-do $test$
-declare
-  v_company uuid;
-  v_lion uuid;
-  v_guilliman uuid;
-  v_order uuid;
-  v_count integer;
-  v_unauthorized_company uuid := gen_random_uuid();
+
+create temp table company_auth_fixture (
+  admin_id uuid default gen_random_uuid(),
+  guilliman_id uuid default gen_random_uuid(),
+  lion_id uuid default gen_random_uuid(),
+  customer_id uuid default gen_random_uuid(),
+  company_id uuid default gen_random_uuid(),
+  other_company_id uuid default gen_random_uuid(),
+  facility_id uuid default gen_random_uuid(),
+  gate_id uuid default gen_random_uuid(),
+  other_gate_id uuid default gen_random_uuid(),
+  other_facility_id uuid default gen_random_uuid(),
+  other_order_id uuid default gen_random_uuid(),
+  lion_profile_id uuid default gen_random_uuid(),
+  order_id uuid,
+  visit_id uuid,
+  observation_id uuid,
+  pending_photo_id uuid
+) on commit drop;
+insert into company_auth_fixture default values;
+grant select, update on company_auth_fixture to authenticated;
+
+do $seed$
+declare f company_auth_fixture%rowtype;
 begin
-  select id into v_company from public.companies
-    where name ilike '%ACME%' order by created_at limit 1;
-  if v_company is null then
-    raise exception 'BLOCKED: ACME test company not found';
-  end if;
-
-  select id into v_lion from auth.users where email='lion@constelmec.com';
-  select id into v_guilliman from auth.users where email='guilliman@constelmec.com';
-  if v_lion is null or v_guilliman is null then
-    raise exception 'BLOCKED: test technicians missing';
-  end if;
-
-  select o.id into v_order
-  from public.service_orders o
-  join public.service_order_technicians sot on sot.service_order_id=o.id
-  join public.technician_profiles tp on tp.id=sot.technician_id
-  where o.company_id=v_company and tp.user_id=v_guilliman
-    and sot.active=true and not exists (
-      select 1 from public.service_order_technicians s2
-      join public.technician_profiles t2 on t2.id=s2.technician_id
-      where s2.service_order_id=o.id and s2.active=true
-        and t2.user_id=v_lion
-    )
-  order by o.created_at desc limit 1;
-  if v_order is null then
-    raise exception 'BLOCKED: no Guilliman-only order available for the regression';
-  end if;
-
-  perform set_config('test.lion_user',v_lion::text,true);
-  perform set_config('test.acme_company',v_company::text,true);
-  perform set_config('test.fixture_order',v_order::text,true);
-  perform set_config('request.jwt.claim.sub',v_lion::text,true);
-  if not app_private.tech_can_access_company(v_company) then
-    raise exception 'FAIL: Lion with active company assignment denied';
-  end if;
-  if app_private.tech_can_access_company(v_unauthorized_company) then
-    raise exception 'FAIL: Lion authorized for unrelated company';
-  end if;
-
-  perform set_config('request.jwt.claim.sub',v_guilliman::text,true);
-  if not app_private.tech_can_access_company(v_company) then
-    raise exception 'FAIL: Guilliman with active company assignment denied';
-  end if;
-
-  select count(*) into v_count
-  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-  where n.nspname='public'
-    and p.proname in ('tech_start_pilot_order','tech_get_pilot_progress',
-      'tech_save_pilot_control','tech_save_pilot_correction',
-      'tech_finish_pilot_order','tech_live_heartbeat')
-    and pg_get_functiondef(p.oid) ilike '%tech_can_access_company%';
-  if v_count <> 6 then
-    raise exception 'FAIL: expected six company-scoped inspection RPCs, got %',v_count;
-  end if;
-  raise notice 'PASS (read-only): company assignment, cross-company denial, six RPC guards, and legacy order fixture';
+  select * into f from company_auth_fixture;
+  insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data)
+  select id, id::text||'@constelmec.test', '{}', '{}'
+  from unnest(array[f.admin_id,f.guilliman_id,f.lion_id,f.customer_id]) id;
+  insert into public.companies (id,name) values (f.company_id,'QA Company'),(f.other_company_id,'QA Other Company');
+  insert into public.memberships (company_id,user_id,role) values
+    (f.company_id,f.admin_id,'admin'),(f.company_id,f.guilliman_id,'technician'),
+    (f.company_id,f.lion_id,'technician'),(f.company_id,f.customer_id,'customer'),
+    (f.other_company_id,f.lion_id,'technician');
+  insert into public.facilities (id,company_id,name) values
+    (f.facility_id,f.company_id,'QA Plant'),(f.other_facility_id,f.other_company_id,'QA Other Plant');
+  insert into public.gates (id,company_id,facility_id,code,description) values
+    (f.gate_id,f.company_id,f.facility_id,'QA-001','QA gate'),
+    (f.other_gate_id,f.other_company_id,f.other_facility_id,'QA-002','QA other gate');
+  insert into public.technician_profiles(id,user_id,company_id,first_name,last_name) values
+    (gen_random_uuid(),f.guilliman_id,f.company_id,'Roboute','Guilliman'),
+    (f.lion_profile_id,f.lion_id,f.company_id,'Lion','El Jonson');
+  insert into public.technician_company_assignments(company_id,technician_id,active)
+    select f.company_id,id,true from public.technician_profiles where user_id in (f.guilliman_id,f.lion_id);
+  insert into public.service_orders(id,company_id,facility_id,gate_id,service_type,status,scheduled_start,scheduled_end)
+  values(f.other_order_id,f.other_company_id,f.other_facility_id,f.other_gate_id,'preventive','scheduled',now(),now()+interval '1 hour');
 end
-$test$;
-
--- Assert the actual RLS read path under the authenticated PostgREST role.
-set local role authenticated;
-select set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
-do $rls$
-declare
-  v_visible integer;
-begin
-  select count(*) into v_visible from public.service_orders
-  where id=current_setting('test.fixture_order')::uuid
-    and company_id=current_setting('test.acme_company')::uuid;
-  if v_visible <> 1 then
-    raise exception 'FAIL: Lion cannot see Guilliman-only order through service_orders RLS';
-  end if;
-  raise notice 'PASS (RLS): Lion sees ACME order without service_order_technicians row';
-end
-$rls$;
-
--- DEV transaction-only revocation test; rollback restores the assignment.
-reset role;
-do $revoke$
-declare v_tech uuid;
-begin
-  select tp.id into v_tech
-  from public.technician_profiles tp
-  where tp.user_id=current_setting('test.lion_user')::uuid and tp.active
-  limit 1;
-  update public.technician_company_assignments
-    set active=false
-  where technician_id=v_tech
-    and company_id=current_setting('test.acme_company')::uuid;
-  if not found then raise exception 'BLOCKED: no active company assignment to revoke'; end if;
-  perform set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
-  if app_private.tech_can_access_company(current_setting('test.acme_company')::uuid) then
-    raise exception 'FAIL: revoked Lion still authorized';
-  end if;
-  raise notice 'PASS: revocation denies company helper';
-end
-$revoke$;
+$seed$;
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub',current_setting('test.lion_user'),true);
-do $rls_revoked$
-declare v_visible integer;
+do $shared$
+declare
+  f company_auth_fixture%rowtype;
+  slot jsonb;
+  progress jsonb;
 begin
-  select count(*) into v_visible from public.service_orders
-  where id=current_setting('test.fixture_order')::uuid;
-  if v_visible <> 0 then
-    raise exception 'FAIL: revoked Lion still sees service order through RLS';
-  end if;
-  raise notice 'PASS: revocation denies service_orders RLS';
+  select * into f from company_auth_fixture;
+  perform set_config('request.jwt.claim.sub',f.admin_id::text,true);
+  f.order_id := public.admin_create_service_order(f.company_id,f.facility_id,f.gate_id,'preventive',now(),now()+interval '1 hour',gen_random_uuid());
+  perform public.admin_schedule_service_order(f.company_id,f.order_id);
+  assert (select count(*)=0 from public.service_order_technicians where service_order_id=f.order_id);
+  assert (select count(*)=2 from public.admin_list_enabled_company_technicians(f.company_id));
+  perform set_config('request.jwt.claim.sub',f.customer_id::text,true);
+  f.observation_id := public.customer_create_observation(f.company_id,f.gate_id,'[QA] Observación de prueba',gen_random_uuid());
+
+  perform set_config('request.jwt.claim.sub',f.guilliman_id::text,true);
+  f.visit_id := public.tech_start_pilot_order(f.order_id);
+  perform public.tech_save_pilot_control(f.order_id,f.visit_id,'structure','Estructura','ok','Nota original de Guilliman');
+  perform public.tech_live_heartbeat(f.order_id,f.visit_id);
+  slot := public.tech_request_maintenance_photo_slot(f.company_id,f.order_id,f.visit_id,'structure','inspection','image/png',20,'structure.png');
+  insert into storage.objects(bucket_id,name,metadata) values('maintenance-evidence',slot->>'storage_path','{"size":20}');
+  perform public.tech_confirm_maintenance_photo((slot->>'photo_id')::uuid);
+
+  perform set_config('request.jwt.claim.sub',f.lion_id::text,true);
+  assert (select count(*)=1 from public.tech_list_accessible_companies() where id=f.company_id);
+  assert (select count(*)=1 from public.service_orders where id=f.order_id);
+  assert (select count(*)=0 from public.service_orders where id=f.other_order_id);
+  assert (select count(*)=0 from public.gates where id=f.other_gate_id);
+  assert public.tech_get_pilot_progress(f.other_order_id) is null;
+  begin
+    perform public.tech_start_pilot_order(f.other_order_id);
+    raise exception 'Cross-company start unexpectedly allowed';
+  exception when insufficient_privilege then null;
+  end;
+  assert public.tech_start_pilot_order(f.order_id)=f.visit_id;
+  perform public.tech_reply_to_observation(f.company_id,f.observation_id,'[QA] Recepción confirmada');
+  assert (select count(*)=2 from public.get_observation_conversation(f.company_id,f.observation_id));
+  progress := public.tech_get_pilot_progress(f.order_id);
+  assert progress->'controls'->0->>'note'='Nota original de Guilliman';
+  perform public.tech_save_pilot_control(f.order_id,f.visit_id,'guides','Guías','ok','Nota original de Lion');
+  perform public.tech_live_heartbeat(f.order_id,f.visit_id);
+  slot := public.tech_request_maintenance_photo_slot(f.company_id,f.order_id,f.visit_id,'guides','inspection','image/png',20,'guides.png');
+  insert into storage.objects(bucket_id,name,metadata) values('maintenance-evidence',slot->>'storage_path','{"size":20}');
+  perform public.tech_confirm_maintenance_photo((slot->>'photo_id')::uuid);
+  assert (select count(*)=2 from public.maintenance_photos where visit_id=f.visit_id);
+  assert jsonb_array_length(public.tech_get_pilot_progress(f.order_id)->'controls')=2;
+  slot := public.tech_request_maintenance_photo_slot(f.company_id,f.order_id,f.visit_id,'guides','inspection','image/png',20,'pending.png');
+  f.pending_photo_id := (slot->>'photo_id')::uuid;
+  perform set_config('qa.photo_path',slot->>'storage_path',true);
+  update company_auth_fixture set order_id=f.order_id,visit_id=f.visit_id,observation_id=f.observation_id,pending_photo_id=f.pending_photo_id;
 end
-$rls_revoked$;
+$shared$;
+
+do $revocation$
+declare f company_auth_fixture%rowtype;
+begin
+  select * into f from company_auth_fixture;
+  perform set_config('request.jwt.claim.sub',f.admin_id::text,true);
+  perform public.admin_set_technician_company(f.company_id,f.lion_profile_id,false);
+
+  perform set_config('request.jwt.claim.sub',f.lion_id::text,true);
+  assert (select count(*)=0 from public.tech_list_accessible_companies());
+  assert (select count(*)=0 from public.service_orders where id=f.order_id);
+  assert (select count(*)=0 from public.inspection_controls where visit_id=f.visit_id);
+  assert (select count(*)=0 from public.maintenance_photos where visit_id=f.visit_id);
+  assert not app_private.can_upload_maintenance_photo(current_setting('qa.photo_path'));
+  assert public.tech_get_pilot_progress(f.order_id) is null;
+  assert (select count(*)=0 from public.customer_observations where id=f.observation_id);
+  assert (select count(*)=0 from public.get_observation_conversation(f.company_id,f.observation_id));
+  begin
+    perform public.gate_inspection_history(f.gate_id);
+    raise exception 'Revoked history unexpectedly allowed';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.tech_confirm_maintenance_photo(f.pending_photo_id);
+    raise exception 'Revoked photo confirmation unexpectedly allowed';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.tech_save_pilot_control(f.order_id,f.visit_id,'motor','Motor','ok');
+    raise exception 'Revoked write unexpectedly allowed';
+  exception when insufficient_privilege then null;
+  end;
+
+  perform set_config('request.jwt.claim.sub',f.admin_id::text,true);
+  perform public.admin_set_technician_company(f.company_id,f.lion_profile_id,true);
+  perform set_config('request.jwt.claim.sub',f.lion_id::text,true);
+  assert jsonb_array_length(public.tech_get_pilot_progress(f.order_id)->'controls')=2;
+end
+$revocation$;
+
+do $closed$
+declare
+  f company_auth_fixture%rowtype;
+  key text;
+  history jsonb;
+begin
+  select * into f from company_auth_fixture;
+  perform set_config('request.jwt.claim.sub',f.lion_id::text,true);
+  foreach key in array array['motor','electrical','photocells','emergency','opening','closing'] loop
+    perform public.tech_save_pilot_control(f.order_id,f.visit_id,key,key,'ok');
+  end loop;
+  perform public.tech_finish_pilot_order(f.order_id,f.visit_id);
+  begin
+    perform public.tech_save_pilot_control(f.order_id,f.visit_id,'motor','Motor','ok');
+    raise exception 'Closed write unexpectedly allowed';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*)=8 from public.inspection_controls where visit_id=f.visit_id);
+  perform set_config('request.jwt.claim.sub',f.customer_id::text,true);
+  assert (select count(*)=2 from public.get_observation_conversation(f.company_id,f.observation_id));
+  history := public.gate_inspection_history(f.gate_id);
+  assert jsonb_array_length(history)=1;
+  assert history->0->'participants' ? 'Roboute Guilliman';
+  assert history->0->'participants' ? 'Lion El Jonson';
+end
+$closed$;
 rollback;
-
--- Additional E2E steps requiring authenticated browser sessions:
--- 1. Lion sees a scheduled ACME order assigned only to Guilliman (PASS expected).
--- 2. Lion opens same in-progress visit; Guilliman sees shared saved controls.
--- 3. Both can save, correct, upload photos and heartbeat without per-order assignments.
--- 4. Revoking Lion's company assignment immediately blocks list, RPC and storage reads.
--- 5. An ACME technician cannot list or modify a different company's orders.
--- 6. A completed order cannot be reopened; duplicate retries remain idempotent.
--- 7. Admin schedules an order with no service_order_technicians rows.
--- 8. Verify participants are derived from actual visits/controls, not assignments.

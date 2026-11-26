@@ -4,7 +4,7 @@ import GateHistory from './GateHistory';
 import {useEffect,useMemo,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,MessageCircle,Send,ShieldAlert,Wrench} from 'lucide-react';
-import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
+import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates,useTechnicianCompanies} from './hooks/useRealData';
 import type {Membership} from './lib/types';
 import type {TechAssignedOrder} from './lib/types';
 
@@ -285,11 +285,19 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
   );
 }
 
-export default function TechnicianPortal({companyId, userId, membership}: Props) {
+export default function TechnicianPortal({companyId: homeCompanyId, userId}: Props) {
   const [section, setSection] = useState<Section>('gates');
   const queryClient=useQueryClient();
   const navigateOrders=async()=>{await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSection('orders');};
-  const companyName = membership.companies?.name ?? 'Empresa';
+  const companiesQ = useTechnicianCompanies(userId);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(homeCompanyId);
+  const companies = companiesQ.data ?? [];
+  const activeCompany = companies.find(company => company.id === selectedCompanyId) ?? companies[0];
+
+  if (companiesQ.isPending) return <p>Cargando empresas habilitadas…</p>;
+  if (companiesQ.isError) return <p role="alert">No se pudieron verificar tus empresas habilitadas.</p>;
+  if (!activeCompany) return <p role="status">No tenés empresas habilitadas.</p>;
+  const { id: companyId, name: companyName } = activeCompany;
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
     {key: 'orders', label: 'Mis órdenes', icon: CalendarDays},
@@ -299,7 +307,14 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
 
   return (
     <div className="cust-shell">
-      <div className="cust-company"><HardHat size={20}/><span>{companyName} · Técnico</span></div>
+      <div className="cust-company">
+        <HardHat size={20}/>
+        {companies.length > 1
+          ? <select aria-label="Empresa" value={companyId} onChange={event => setSelectedCompanyId(event.target.value)}>
+              {companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </select>
+          : <span>{companyName} · Técnico</span>}
+      </div>
       <div className="tech-nav">
         {navItems.map(({key, label, icon: Icon}) => (
           <button
@@ -311,9 +326,9 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
           </button>
         ))}
       </div>
-      {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
-      {section === 'gates' && <GatesSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
-      {section === 'observations' && <ObservationsInbox companyId={companyId}/>}
+      {section === 'orders' && <OrdersSection key={companyId} companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'gates' && <GatesSection key={companyId} companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'observations' && <ObservationsInbox key={companyId} companyId={companyId}/>}
     </div>
   );
 }
