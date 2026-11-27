@@ -4,7 +4,7 @@ import GateHistory from './GateHistory';
 import {useEffect,useMemo,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {CalendarDays,Clock3,DoorOpen,HardHat,MapPin,MessageCircle,Send,ShieldAlert,Wrench} from 'lucide-react';
-import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates} from './hooks/useRealData';
+import {useMyAssignedOrders,useMyTechnicianProfile,useRealGates,useTechnicianCompanies} from './hooks/useRealData';
 import type {Membership} from './lib/types';
 import type {TechAssignedOrder} from './lib/types';
 
@@ -24,7 +24,6 @@ const statusLabel: Record<string, string> = {
   unassigned: 'Sin asignar', scheduled: 'Programado', in_progress: 'En curso',
   completed: 'Finalizado', rescheduled: 'Reprogramado', cancelled: 'Cancelado',
 };
-const roleLabel = (role: string) => role === 'lead' ? 'Principal' : 'Apoyo';
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-AR', {hour: '2-digit', minute: '2-digit'});
@@ -140,7 +139,6 @@ function OrderCard({item,companyId,onNavigate}: {item: TechAssignedOrder;company
   return (
     <div className={`tech-order-card tech-order-card--${o.status}`}>
       <div className="tech-order-top">
-        <span className={`tech-role-badge tech-role-badge--${item.role}`}>{roleLabel(item.role)}</span>
         <span className={'adm-status ' + o.status}>{statusLabel[o.status] ?? o.status}</span>
       </div>
       <div className="tech-order-type">
@@ -156,7 +154,7 @@ function OrderCard({item,companyId,onNavigate}: {item: TechAssignedOrder;company
       {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
       {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
       {o.gate_id && <button type="button" onClick={()=>setShowHistory(v=>!v)} style={{marginTop:10,padding:12,borderRadius:9,border:'1px solid #cbd5e1',background:'white'}}>{showHistory?'Cerrar historial':'Ver historial del portón'}</button>}
-      {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} orderId={o.status==='completed'?o.id:undefined}/>}
+      {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} companyId={companyId} orderId={o.status==='completed'?o.id:undefined}/>}
       {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setInspect(false);onNavigate()}}/>}
     </div>
   );
@@ -192,7 +190,7 @@ function OrdersSection({companyId, userId,onNavigate}: {companyId: string; userI
     <div className="tech-no-profile">
       <CalendarDays size={34}/>
       <h2>Sin mantenimientos registrados</h2>
-      <p>Iniciá un mantenimiento desde la pestaña de portones; también aparecerán aquí los trabajos finalizados.</p>
+      <p>Las órdenes programadas para esta empresa aparecerán aquí, junto con los trabajos finalizados.</p>
     </div>
   );
 
@@ -264,7 +262,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
   if (gates.length === 0) return <p className="cust-empty">No hay portones registrados.</p>;
   return (
     <div className="tech-gates-list">
-      <p>Seleccioná cualquier portón de tu empresa para comenzar un mantenimiento sin orden previa.</p>
+      <p>Seleccioná un portón de tu empresa para continuar un trabajo en curso o iniciar un mantenimiento espontáneo.</p>
       {error && <p role="alert" className="cust-error">{error}</p>}
       {!selected && pendingGate && <div role="dialog" aria-label="Confirmar portón" style={{padding:16,border:'2px solid #c60020',borderRadius:12,marginBottom:14,background:'#fff'}}><strong>¿Vas a revisar el portón {pendingGate.code}?</strong><p>La orden se creará solamente cuando confirmes.</p><button type="button" disabled={!!busy} onClick={()=>startGate(pendingGate)}>Sí, comenzar</button> <button type="button" disabled={!!busy} onClick={()=>setPendingGate(null)}>Cambiar portón</button></div>}
       {selected && <TechnicianInspection autoStart key={selected.id} orderId={selected.id} gateCode={selected.code} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setSelected(null);setActiveVisitId(null);setInspDone(false);onNavigate()}}/>}
@@ -277,7 +275,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
           </div>
           <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700,flexShrink:0}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
           <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>{const activeId=activeGateOrders.get(g.id);if(activeId){setSelected({id:activeId,code:g.code,gateId:g.id});}else{setPendingGate({id:g.id,code:g.code});}}}>{busy===g.id?'Cargando…':activeGateOrders.has(g.id)?'Continuar inspección':'Iniciar mantenimiento'}</button>
-          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
+          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id} companyId={companyId}/></div>}
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
           </span>
@@ -287,11 +285,19 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
   );
 }
 
-export default function TechnicianPortal({companyId, userId, membership}: Props) {
+export default function TechnicianPortal({companyId: homeCompanyId, userId}: Props) {
   const [section, setSection] = useState<Section>('gates');
   const queryClient=useQueryClient();
   const navigateOrders=async()=>{await queryClient.invalidateQueries({queryKey:['my-assigned-orders']});setSection('orders');};
-  const companyName = membership.companies?.name ?? 'Empresa';
+  const companiesQ = useTechnicianCompanies(userId);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(homeCompanyId);
+  const companies = companiesQ.data ?? [];
+  const activeCompany = companies.find(company => company.id === selectedCompanyId) ?? companies[0];
+
+  if (companiesQ.isPending) return <p>Cargando empresas habilitadas…</p>;
+  if (companiesQ.isError) return <p role="alert">No se pudieron verificar tus empresas habilitadas.</p>;
+  if (!activeCompany) return <p role="status">No tenés empresas habilitadas.</p>;
+  const { id: companyId, name: companyName } = activeCompany;
 
   const navItems: {key: Section; label: string; icon: React.ComponentType<{size:number}>}[] = [
     {key: 'orders', label: 'Mis órdenes', icon: CalendarDays},
@@ -301,7 +307,14 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
 
   return (
     <div className="cust-shell">
-      <div className="cust-company"><HardHat size={20}/><span>{companyName} · Técnico</span></div>
+      <div className="cust-company">
+        <HardHat size={20}/>
+        {companies.length > 1
+          ? <select aria-label="Empresa" value={companyId} onChange={event => setSelectedCompanyId(event.target.value)}>
+              {companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </select>
+          : <span>{companyName} · Técnico</span>}
+      </div>
       <div className="tech-nav">
         {navItems.map(({key, label, icon: Icon}) => (
           <button
@@ -313,9 +326,9 @@ export default function TechnicianPortal({companyId, userId, membership}: Props)
           </button>
         ))}
       </div>
-      {section === 'orders' && <OrdersSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
-      {section === 'gates' && <GatesSection companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
-      {section === 'observations' && <ObservationsInbox companyId={companyId}/>}
+      {section === 'orders' && <OrdersSection key={companyId} companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'gates' && <GatesSection key={companyId} companyId={companyId} userId={userId} onNavigate={()=>{void navigateOrders()}}/>}
+      {section === 'observations' && <ObservationsInbox key={companyId} companyId={companyId}/>}
     </div>
   );
 }

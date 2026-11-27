@@ -116,16 +116,20 @@ BEGIN
   VALUES (v_co, '00000000-0000-0000-0000-000000000098', 'technician')
   ON CONFLICT DO NOTHING;
 
+  -- Also valid under migration 021, where the order assignment is history only.
+  INSERT INTO public.technician_company_assignments (company_id, technician_id, active)
+  VALUES (v_co, v_tech, true);
+
   -- Visit must exist before the service order references it
-  INSERT INTO public.visits (company_id, gate_id, status, started_at)
-  VALUES (v_co, v_gate, 'in_progress', now())
+  INSERT INTO public.visits (company_id, gate_id, status, responsible_user_id, started_at)
+  VALUES (v_co, v_gate, 'in_progress', '00000000-0000-0000-0000-000000000098', now())
   RETURNING id INTO v_vis;
 
   INSERT INTO public.service_orders (
     company_id, facility_id, gate_id, service_type, status,
     inspection_visit_id, scheduled_start, scheduled_end
   ) VALUES (
-    v_co, v_fac, v_gate, 'inspection', 'in_progress',
+    v_co, v_fac, v_gate, 'preventive', 'in_progress',
     v_vis, now(), now() + interval '2 hours'
   ) RETURNING id INTO v_ord;
 
@@ -493,10 +497,10 @@ BEGIN
     v_ord, v_vis, 'ctrl_t',
     'resolved'::public.control_result,
     'Reparación completa del mecanismo de cierre verificada con éxito total',
-    '00000000-0000-0000-00t1-000000000001'::uuid,
+    '00000000-0000-0000-01a1-000000000001'::uuid,
     NULL,
     jsonb_build_object(
-      'idempotency_key', '00000000-0000-0000-00t1-000000000002'::uuid,
+      'idempotency_key', '00000000-0000-0000-01a1-000000000002'::uuid,
       'problem_found',   'Resorte de retorno del mecanismo de cierre roto por fatiga de material',
       'intervention',    'Reemplazo de resorte de retorno y lubricación de guías del mecanismo',
       'verification',    'Cierre completo al tope con fuerza normal en diez ciclos consecutivos'
@@ -518,7 +522,7 @@ BEGIN
     v_ord, v_vis, 'ctrl_t',
     'fault'::public.control_result,
     'Reparación previa resultó insuficiente bajo carga real de tráfico pesado',
-    '00000000-0000-0000-00t2-000000000001'::uuid,
+    '00000000-0000-0000-01a2-000000000001'::uuid,
     'Falla reaparece bajo carga de tráfico pesado con ciclos frecuentes de operación real'
   ) INTO v_id;
   IF v_id IS NULL THEN
@@ -598,7 +602,7 @@ SET LOCAL ROLE authenticated;
 DO $$
 DECLARE
   v_ord  uuid; v_vis uuid;
-  v_rkey uuid := '00000000-0000-0000-00p1-000000000001'::uuid;
+  v_rkey uuid := '00000000-0000-0000-01b1-000000000001'::uuid;
   v_count int;
 BEGIN
   SELECT ord_id, vis_id INTO v_ord, v_vis FROM _t020 LIMIT 1;
@@ -626,7 +630,7 @@ $$;
 DO $$
 DECLARE
   v_ord  uuid; v_vis uuid;
-  v_rkey uuid := '00000000-0000-0000-00p1-000000000001'::uuid;
+  v_rkey uuid := '00000000-0000-0000-01b1-000000000001'::uuid;
   v_count int;
 BEGIN
   SELECT ord_id, vis_id INTO v_ord, v_vis FROM _t020 LIMIT 1;

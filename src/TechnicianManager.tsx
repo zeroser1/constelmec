@@ -4,6 +4,7 @@ import type { Company, Technician } from './AdminControl';
 import {
   useFacilities,
   useTechnicianCompanyAssignments,
+  useEnabledCompanyTechnicians,
   useTechnicianFacilityAssignments,
   useTechnicianMutations,
   useTechnicianProfiles,
@@ -13,18 +14,19 @@ import {
 
 type Tab = 'ficha' | 'empresa' | 'instalaciones';
 
-type Props = { companies: Company[] };
+type Props = { companies: Company[]; platformAdmin?: boolean };
 
-export default function TechnicianManager({ companies }: Props) {
+export default function TechnicianManager({ companies, platformAdmin = false }: Props) {
   const [companyId, setCompanyId]       = useState('');
   const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
   const [tab, setTab]                   = useState<Tab>('ficha');
   const [companyError, setCompanyError] = useState('');
   const [facilityError, setFacilityError] = useState('');
 
-  const techsQ              = useTechnicianProfiles(companyId || undefined);
+  const techsQ              = useTechnicianProfiles(companyId || undefined, platformAdmin);
   const facilitiesQ         = useFacilities(companyId || undefined);
   const companyAssignmentsQ = useTechnicianCompanyAssignments(companyId || undefined);
+  const enabledQ = useEnabledCompanyTechnicians(companyId || undefined);
   const facilityAssignmentsQ = useTechnicianFacilityAssignments(
     companyId || undefined,
     selectedTech?.id,
@@ -36,6 +38,7 @@ export default function TechnicianManager({ companies }: Props) {
   const companyAssignments: TechnicianCompanyAssignment[] = companyAssignmentsQ.data ?? [];
   const facilityAssignments: TechnicianFacilityAssignment[] = facilityAssignmentsQ.data ?? [];
 
+  const enabledNames = new Map((enabledQ.data ?? []).map(tech => [tech.id, `${tech.first_name} ${tech.last_name}`]));
   const companyAssignmentMap = Object.fromEntries(companyAssignments.map(a => [a.technician_id, a]));
   const facilityAssignmentMap = Object.fromEntries(facilityAssignments.map(a => [a.facility_id, a]));
 
@@ -177,8 +180,8 @@ export default function TechnicianManager({ companies }: Props) {
             </p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#728499', fontFamily: 'Arial,Helvetica,sans-serif' }}>
               {isEnabled
-                ? 'Puede ser asignado a órdenes de servicio e instalaciones.'
-                : 'No puede ser asignado a órdenes ni instalaciones hasta que esté habilitado.'}
+                ? 'Puede trabajar en las órdenes habilitadas de esta empresa con una membresía de técnico activa.'
+                : 'No puede consultar ni operar órdenes de esta empresa hasta que esté habilitado.'}
             </p>
           </div>
         </div>
@@ -306,6 +309,11 @@ export default function TechnicianManager({ companies }: Props) {
                 <p style={{ color: '#8295a8', fontSize: 13, padding: 4 }}>Sin técnicos en esta empresa.</p>
               )}
               {techs.map(renderTechItem)}
+              {enabledQ.isError && <p role="alert">No se pudo consultar la lista de técnicos habilitados.</p>}
+              {enabledNames.size > 0 && <div>
+                <strong>Habilitados para la empresa</strong>
+                <ul>{Array.from(enabledNames, ([id, name]) => <li key={id}>{name}</li>)}</ul>
+              </div>}
             </div>
           </div>
 

@@ -66,10 +66,25 @@ export function useMembership(userId: string | undefined) {
       const { data, error } = await supabase!
         .from('memberships')
         .select('company_id,role,companies(name)')
+        .eq('user_id', userId!)
         .eq('active', true)
         .limit(1);
       if (error) throw new Error(error.message);
       return unwrap<Membership[]>(data)[0] ?? null;
+    },
+  });
+}
+
+export function useTechnicianCompanies(userId: string) {
+  return useQuery({
+    queryKey: ['technician-companies', userId],
+    enabled: !!userId && !!supabase,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<Array<{id: string; name: string}>> => {
+      const { data, error } = await supabase!.rpc('tech_list_accessible_companies');
+      if (error) throw new Error(error.message);
+      return unwrap<Array<{id: string; name: string}>>(data ?? []);
     },
   });
 }
@@ -512,18 +527,30 @@ export type TechnicianFacilityAssignment = {
   active: boolean;
 };
 
-export function useTechnicianProfiles(companyId: string | undefined) {
+export function useTechnicianProfiles(companyId: string | undefined, platformAdmin = false) {
   return useQuery({
-    queryKey: ['technicians', companyId],
+    queryKey: ['technicians', companyId, platformAdmin],
     enabled: !!companyId && !!supabase,
     queryFn: async (): Promise<Technician[]> => {
-      const { data, error } = await supabase!
+      const profiles = supabase!
         .from('technician_profiles')
-        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
-        .eq('company_id', companyId!)
-        .order('last_name', { ascending: true });
+        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active');
+      const visibleProfiles = platformAdmin ? profiles : profiles.eq('company_id', companyId!);
+      const { data, error } = await visibleProfiles.order('last_name', { ascending: true });
       if (error) throw new Error(error.message);
       return unwrap<Technician[]>(data);
+    },
+  });
+}
+
+export function useEnabledCompanyTechnicians(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['enabled-company-technicians', companyId],
+    enabled: !!companyId && !!supabase,
+    queryFn: async (): Promise<Array<Pick<Technician, 'id' | 'first_name' | 'last_name'>>> => {
+      const { data, error } = await supabase!.rpc('admin_list_enabled_company_technicians', {p_company: companyId});
+      if (error) throw new Error(error.message);
+      return unwrap<Array<Pick<Technician, 'id' | 'first_name' | 'last_name'>>>(data ?? []);
     },
   });
 }
@@ -576,6 +603,7 @@ export function useTechnicianMutations() {
     },
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['tech-company-assignments', variables.cId] });
+      qc.invalidateQueries({ queryKey: ['enabled-company-technicians', variables.cId] });
       // Disabling cascades to facility assignments via SQL trigger — refresh both.
       qc.invalidateQueries({ queryKey: ['tech-facility-assignments', variables.cId, variables.tId] });
     },
@@ -772,7 +800,8 @@ export function useMyTechnicianProfile(userId: string | undefined, companyId: st
         .from('technician_profiles')
         .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
         .eq('user_id', userId!)
-        .eq('company_id', companyId!)
+        .eq('active', true)
+        .limit(1)
         .maybeSingle();
       if (error) throw new Error(error.message);
       return unwrap<Technician | null>(data);
@@ -780,26 +809,30 @@ export function useMyTechnicianProfile(userId: string | undefined, companyId: st
   });
 }
 
-// Orders assigned to a technician via service_order_technicians.
-// Needs migration 010 (service_orders_member_read) for the embedded service_orders join.
+// Company-scoped technician access (migration 021). RLS authorizes only
+// technicians with an active company assignment, profile and membership.
+// Keep the legacy TechAssignedOrder wrapper for the portal's presentation.
 export function useMyAssignedOrders(companyId: string | undefined, techProfileId: string | undefined) {
   return useQuery({
     queryKey: ['my-assigned-orders', companyId, techProfileId],
     enabled: !!companyId && !!techProfileId && !!supabase,
     queryFn: async (): Promise<TechAssignedOrder[]> => {
       const { data, error } = await supabase!
-        .from('service_order_technicians')
-        .select(
-          'id,service_order_id,role,assigned_at,active,' +
-          'service_orders(id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,' +
-          'gates(code,description),facilities(name))',
-        )
+        .from('service_orders')
+        .select('id,company_id,gate_id,service_type,status,scheduled_start,scheduled_end,notes,gates(code,description),facilities(name)')
         .eq('company_id', companyId!)
-        .eq('technician_id', techProfileId!)
-        .eq('active', true)
-        .order('assigned_at', { ascending: false });
+        .in('status', ['scheduled', 'in_progress', 'completed'])
+        .order('scheduled_start', { ascending: false });
       if (error) throw new Error(error.message);
-      return unwrap<TechAssignedOrder[]>(data);
+      const orders = unwrap<NonNullable<TechAssignedOrder['service_orders']>[]>(data ?? []);
+      return orders.map(order => ({
+        id: order.id,
+        service_order_id: order.id,
+        role: 'support' as const,
+        assigned_at: order.scheduled_start,
+        active: true,
+        service_orders: order,
+      }));
     },
   });
 }
@@ -818,7 +851,7 @@ export type CreateServiceOrderInput = {
   serviceType: string;
   scheduledStart: string; // ISO string
   scheduledEnd: string;   // ISO string
-  technicians?: ServiceOrderTechInput[];
+
 };
 
 export type CreateServiceOrderResult = {
@@ -850,37 +883,24 @@ export function useCreateServiceOrder() {
       const assignedTechs: string[] = [];
       const failedTechs: Array<{ technicianId: string; error: string }> = [];
 
-      for (const tech of input.technicians ?? []) {
-        const { error: assignError } = await supabase!.rpc('admin_assign_order_technician', {
-          p_company_id:    input.companyId,
-          p_order_id:      orderId,
-          p_technician_id: tech.technicianId,
-          p_role:          tech.role,
-        });
-        if (assignError) {
-          failedTechs.push({ technicianId: tech.technicianId, error: assignError.message });
-        } else {
-          assignedTechs.push(tech.technicianId);
-        }
-      }
-
+      // Company authorization replaces order-by-order technician assignment.
+      // Scheduling no longer depends on service_order_technicians.
       let scheduled = false;
-      if (assignedTechs.length > 0) {
-        const { error: schedError } = await supabase!.rpc('admin_schedule_service_order', {
-          p_company_id: input.companyId,
-          p_order_id:   orderId,
-        });
-        if (schedError) {
-          failedTechs.push({ technicianId: '__schedule__', error: schedError.message });
-        } else {
-          scheduled = true;
-        }
+      const { error: schedError } = await supabase!.rpc('admin_schedule_service_order', {
+        p_company_id: input.companyId,
+        p_order_id:   orderId,
+      });
+      if (schedError) {
+        failedTechs.push({ technicianId: '__schedule__', error: schedError.message });
+      } else {
+        scheduled = true;
       }
 
       return { orderId, assignedTechs, failedTechs, scheduled };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-data'] });
+      qc.invalidateQueries({ queryKey: ['platform-admin-data'] });
       qc.invalidateQueries({ queryKey: ['company-service-orders'] });
       qc.invalidateQueries({ queryKey: ['my-assigned-orders'] });
     },
