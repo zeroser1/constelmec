@@ -1,8 +1,7 @@
 name: CONSTELMEC encrypted Supabase backup to Drive
 
 on:
-  schedule:
-    - cron: '0 6 * * *' # 03:00 Buenos Aires, daily
+  # Manual validation only. Do not enable schedule until restore is verified.
   workflow_dispatch:
 
 permissions:
