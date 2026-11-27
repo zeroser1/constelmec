@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from backup_to_drive import create_archive, safe_name, storage_objects
+from backup_to_drive import create_archive, find_or_create_backup_folder, safe_name, storage_objects
 
 
 class BackupTests(unittest.TestCase):
@@ -29,6 +29,30 @@ class BackupTests(unittest.TestCase):
                                      {"apikey": "test"}, "bucket"))
         self.assertEqual(found, ["folder/nested.jpg", "root.jpg"])
         self.assertEqual(http.post.call_count, 2)
+
+    def test_drive_file_scope_creates_app_owned_folder(self):
+        listing = Mock()
+        listing.raise_for_status.return_value = None
+        listing.json.return_value = {"files": []}
+        created = Mock()
+        created.raise_for_status.return_value = None
+        created.json.return_value = {"id": "folder-123"}
+        http = Mock()
+        http.get.return_value = listing
+        http.post.return_value = created
+        self.assertEqual(find_or_create_backup_folder(http, "access-token"), "folder-123")
+        args = http.post.call_args
+        self.assertEqual(args.kwargs["json"]["appProperties"],
+                         {"constelmec_backup": "production"})
+
+    def test_drive_file_scope_reuses_app_owned_folder(self):
+        listing = Mock()
+        listing.raise_for_status.return_value = None
+        listing.json.return_value = {"files": [{"id": "folder-456"}]}
+        http = Mock()
+        http.get.return_value = listing
+        self.assertEqual(find_or_create_backup_folder(http, "access-token"), "folder-456")
+        http.post.assert_not_called()
 
     def test_archive_encrypts_and_verifies(self):
         import pyzipper
