@@ -19,6 +19,28 @@
 
 **OAuth externo en Testing:** refresh tokens para scopes Drive suelen expirar a los 7 días. Antes de depender del cron diario, pasar a producción cuando Google lo permita; pueden existir avisos o requisitos de verificación. No solicitar secretos en un chat.
 
+## Obtener token OAuth en tu propia PC (una sola vez)
+
+**Precondición:** Google Auth Platform → Público indica **En producción**, y en Acceso a los datos quedó solo el permiso `drive.file`. El estado de publicación no garantiza que Google haya completado verificaciones que eventualmente exija.
+
+1. En Google Auth Platform → Clientes, descargá el JSON del cliente OAuth **Aplicación de escritorio** y guardalo en una carpeta privada de tu computadora (por ejemplo, Descargas). Nunca lo agregues al repositorio.
+2. Descargá la rama de este PR en tu PC, o al menos `scripts/authorize_drive.py` y `scripts/authorize-requirements.txt`.
+3. Instalá Python 3.12+ en Windows. En PowerShell, dentro del directorio del repositorio:
+
+   `py -m pip install -r scripts/authorize-requirements.txt`
+
+4. Ejecutá (reemplazá la ruta por la ubicación real del JSON):
+
+   `py scripts/authorize_drive.py "$env:USERPROFILE\Downloads\client_secret.json"`
+
+5. Se abrirá Google en el navegador. Elegí la cuenta autorizada de CONSTELMEC y aprobá el permiso `drive.file`. Si Google advierte que la app no está verificada, revisá que sea el proyecto que vos creaste; no ignores bloqueos de seguridad ni compartas credenciales.
+6. El script mostrará **GDRIVE_CLIENT_ID**, **GDRIVE_CLIENT_SECRET** y **GDRIVE_REFRESH_TOKEN**. Copiá cada valor **directamente** a GitHub → Settings → Secrets and variables → Actions → New repository secret. **No pegues los valores en ChatGPT, tickets, mensajes ni archivos versionados.**
+7. Cerrá la terminal. Borrá de Descargas cualquier copia innecesaria del JSON y no guardes capturas del token. Si el token se expone, revocalo y generá otro.
+
+Si Python no está instalado, instalalo desde [python.org](https://www.python.org/downloads/) y verificá `py --version`.
+
+**Importante:** esta autorización no ejecuta el backup; aún deben configurarse los otros secretos, revisar el PR, ejecutar la primera copia manual y ensayar restauración.
+
 ## Configuración de GitHub Actions
 
 Crear 7 **Repository secrets** en `zeroser1/constelmec → Settings → Secrets and variables → Actions`:
