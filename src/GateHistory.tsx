@@ -1,10 +1,11 @@
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from './lib/supabase';
+import MaintenancePhoto from './components/MaintenancePhoto';
 type Correction={result:string;reason:string;corrected_note:string|null;date:string};
 type Repair={id:string;actor_user_id:string;problem_found:string;intervention:string;verification:string|null;remaining_work:string|null;created_at:string};
 type Control={key:string;label:string;result:string;note:string|null;current_note:string|null;original_result:string;original_note:string|null;corrections:Correction[];repairs:Repair[]};
 type Visit={id:string;order_id:string|null;date:string;status:string;technician:string;participants?:string[];controls:Control[]};
-type PhotoItem={id:string;control_key:string;phase:string;signedUrl:string};
+type PhotoItem={id:string;control_key:string;phase:string;storage_path:string;bucket:string};
 const names:Record<string,string>={ok:'Correcto',fault:'Falla',critical:'Crítica',not_applicable:'No aplica',unverifiable:'No verificable',resolved:'Resuelto',partial:'Parcial'};
 const resultColor=(r:string)=>r==='fault'||r==='critical'?'#b91c1c':r==='partial'?'#c2410c':r==='resolved'?'#065f46':'#334155';
 const fmt=(date:string)=>new Date(date).toLocaleString('es-AR',{timeZone:'America/Argentina/Buenos_Aires',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -18,17 +19,10 @@ export default function GateHistory({gateId,orderId,companyId}:{gateId:string;or
   if(!open||!companyId||loadedRef.current.has(open))return;
   loadedRef.current.add(open);
   void(async()=>{try{
-   const{data}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:open});
-   if(!data||!Array.isArray(data)){setVisitPhotoErr(pe=>({...pe,[open]:''}));setVisitPhotos(p=>({...p,[open]:[]}));return;}
-   const result:PhotoItem[]=[];
-   let failed=0;
-   await Promise.all((data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>).map(async ph=>{
-    const{data:u}=await supabase!.storage.from(ph.bucket||'maintenance-evidence').createSignedUrl(ph.storage_path,3600);
-    if(!u?.signedUrl){failed++;return;}
-    result.push({id:ph.id,control_key:ph.control_key,phase:ph.phase,signedUrl:u.signedUrl});
-   }));
-   setVisitPhotoErr(pe=>({...pe,[open]:failed>0?`${failed} foto(s) no pudieron cargarse.`:''}));
-   setVisitPhotos(p=>({...p,[open]:result}));
+   const{data,error:photoError}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:open});
+   if(photoError)throw photoError;
+   setVisitPhotoErr(pe=>({...pe,[open]:''}));
+   setVisitPhotos(p=>({...p,[open]:(Array.isArray(data)?data:[]) as PhotoItem[]}));
   }catch(e){
    loadedRef.current.delete(open);
    setVisitPhotoErr(pe=>({...pe,[open]:(e as Error).message||'No se pudieron cargar las fotos.'}));
@@ -54,7 +48,7 @@ export default function GateHistory({gateId,orderId,companyId}:{gateId:string;or
  {c.original_note&&c.original_note!==c.current_note&&<p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',wordBreak:'break-word',margin:'4px 0',color:'#64748b',fontSize:12}}>Observación original: {c.original_note}</p>}
  {c.corrections?.length>0&&<div style={{paddingLeft:10,borderLeft:'3px solid #94a3b8'}}><strong>Movimientos y observaciones</strong>{c.corrections.map((x,i)=>{const previous=i===0?c.original_result:c.corrections[i-1].result;return <div key={i} style={{margin:'6px 0'}}><p style={{whiteSpace:'pre-wrap',margin:0}}>{fmt(x.date)} · {previous===x.result?'Observación actualizada':(names[previous]||previous)+' → '+(names[x.result]||x.result)}: {x.reason}</p>{x.corrected_note&&<p style={{whiteSpace:'pre-wrap',margin:'2px 0 0 8px',fontSize:12,color:'#334155'}}>Observación: {x.corrected_note}</p>}</div>})}</div>}
  {c.repairs?.length>0&&<div style={{paddingLeft:10,borderLeft:'3px solid #065f46',marginTop:6}}><strong>Reparaciones ({c.repairs.length})</strong>{c.repairs.map(r=><div key={r.id} style={{marginTop:6,fontSize:13}}><div><strong>Problema:</strong> {r.problem_found}</div><div><strong>Intervención:</strong> {r.intervention}</div>{r.verification&&<div><strong>Verificación:</strong> {r.verification}</div>}{r.remaining_work&&<div><strong>Pendiente:</strong> {r.remaining_work}</div>}<div style={{color:'#64748b',fontSize:11}}>{fmt(r.created_at)}</div></div>)}</div>}
- {(visitPhotos[v.id]??[]).filter(ph=>ph.control_key===c.key).map(ph=><a key={ph.id} href={ph.signedUrl} target="_blank" rel="noopener noreferrer" style={{display:'inline-block',width:52,height:52,borderRadius:6,border:'1px solid #cbd5e1',overflow:'hidden',background:'#f1f5f9',verticalAlign:'middle',marginRight:4,marginTop:6}}><img src={ph.signedUrl} alt={ph.phase} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></a>)}
+ {(visitPhotos[v.id]??[]).filter(ph=>ph.control_key===c.key).map(ph=><MaintenancePhoto key={ph.id} bucket={ph.bucket||'maintenance-evidence'} path={ph.storage_path} phase={ph.phase}/>)}
  </div>)}</div>}
  </div>})}</section>;
 }

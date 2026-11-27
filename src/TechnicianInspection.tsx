@@ -1,9 +1,10 @@
 import {useEffect,useRef,useState} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {supabase} from './lib/supabase';
+import MaintenancePhoto from './components/MaintenancePhoto';
 import type {TechAssignedOrder} from './lib/types';
 
-type PhotoState={id:string;path:string;signedUrl?:string;phase:string;status:'uploading'|'confirmed'|'failed'};
+type PhotoState={id:string;path:string;bucket?:string;phase:string;status:'uploading'|'confirmed'|'failed'};
 type PhotoSlot={photo_id:string;storage_path:string;bucket:string};
 
 const checks = [
@@ -51,11 +52,9 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
    const{data}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:visitId});
    if(!data||!Array.isArray(data))return;
    const grouped:Record<string,PhotoState[]>={};
-   await Promise.all((data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>).map(async p=>{
-    const{data:u}=await supabase!.storage.from(p.bucket||'maintenance-evidence').createSignedUrl(p.storage_path,3600);
-    const k=p.control_key;if(!grouped[k])grouped[k]=[];
-    grouped[k].push({id:p.id,path:p.storage_path,phase:p.phase,status:'confirmed',signedUrl:u?.signedUrl});
-   }));
+   for (const p of data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>) {
+    (grouped[p.control_key] ??= []).push({id:p.id,path:p.storage_path,bucket:p.bucket,phase:p.phase,status:'confirmed'});
+   }
    setPhotos(grouped);
   }catch{/* backend not ready */}})();
  },[visitId,companyId]);
@@ -82,9 +81,7 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
    // Step 3: confirm
    const{error:confErr}=await supabase!.rpc('tech_confirm_maintenance_photo',{p_photo_id:photo_id});
    if(confErr)throw new Error(confErr.message);
-   // Step 4: signed URL for display
-   const{data:u}=await supabase!.storage.from(bucket).createSignedUrl(storage_path,3600);
-   setPhotos(p=>({...p,[key]:(p[key]??[]).map(ph=>ph.id===tempId?{id:photo_id,path:storage_path,phase,status:'confirmed',signedUrl:u?.signedUrl}:ph)}));
+   setPhotos(p=>({...p,[key]:(p[key]??[]).map(ph=>ph.id===tempId?{id:photo_id,path:storage_path,phase,status:'confirmed',bucket}:ph)}));
   }catch(e){
    setPhotos(p=>({...p,[key]:(p[key]??[]).filter(ph=>ph.id!==tempId)}));
    setPhotoErr(pe=>({...pe,[key]:(e as Error).message}));
@@ -193,7 +190,7 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
      {photoErr[key]&&<small style={{color:'#b91c1c',fontSize:11}}>{photoErr[key]}</small>}
      {(photos[key]??[]).map(ph=><span key={ph.id} style={{display:'inline-block',width:52,height:52,borderRadius:6,border:'1px solid #cbd5e1',overflow:'hidden',background:'#f1f5f9',verticalAlign:'middle'}}>
       {ph.status==='uploading'?<span style={{display:'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontSize:11,color:'#64748b'}}>↑</span>
-       :ph.signedUrl?<a href={ph.signedUrl} target="_blank" rel="noopener noreferrer"><img src={ph.signedUrl} alt={ph.phase} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></a>
+       :ph.status==='confirmed'?<MaintenancePhoto bucket={ph.bucket||'maintenance-evidence'} path={ph.path} phase={ph.phase}/>
        :null}
      </span>)}
     </div>}

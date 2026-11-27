@@ -154,7 +154,7 @@ function OrderCard({item,companyId,onNavigate}: {item: TechAssignedOrder;company
       {o.status !== 'completed' && o.status !== 'cancelled' && <button type="button" onClick={()=>setInspect(v=>!v)} style={{marginTop:12,padding:'12px 18px',borderRadius:9,background:'#c60020',color:'white',fontWeight:700,border:0}}>{inspect?'Ocultar chequeo':'Iniciar chequeo'}</button>}
       {o.status === 'completed' && <p className="tech-order-notes">Mantenimiento finalizado.</p>}
       {o.gate_id && <button type="button" onClick={()=>setShowHistory(v=>!v)} style={{marginTop:10,padding:12,borderRadius:9,border:'1px solid #cbd5e1',background:'white'}}>{showHistory?'Cerrar historial':'Ver historial del portón'}</button>}
-      {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} orderId={o.status==='completed'?o.id:undefined}/>}
+      {showHistory && o.gate_id && <GateHistory gateId={o.gate_id} companyId={companyId} orderId={o.status==='completed'?o.id:undefined}/>}
       {inspect && <TechnicianInspection orderId={o.id} gateCode={o.gates?.code ?? 'Portón'} companyId={companyId} onVisitStarted={setActiveVisitId} onFinished={()=>setInspDone(true)} onDone={()=>{setInspect(false);onNavigate()}}/>}
     </div>
   );
@@ -275,7 +275,7 @@ function GatesSection({companyId, userId, onNavigate}: {companyId: string; userI
           </div>
           <button type="button" onClick={()=>setHistoryGate(historyGate===g.id?null:g.id)} style={{padding:'10px 12px',borderRadius:9,border:'1px solid #cbd5e1',background:'#fff',color:'#14263e',fontWeight:700,flexShrink:0}}>{historyGate===g.id?'Cerrar historial':'Ver historial'}</button>
           <button className="tech-gate-start" style={{position:'static',flexShrink:0}} type="button" disabled={!!busy} onClick={()=>{const activeId=activeGateOrders.get(g.id);if(activeId){setSelected({id:activeId,code:g.code,gateId:g.id});}else{setPendingGate({id:g.id,code:g.code});}}}>{busy===g.id?'Cargando…':activeGateOrders.has(g.id)?'Continuar inspección':'Iniciar mantenimiento'}</button>
-          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id}/></div>}
+          {historyGate===g.id&&<div style={{width:'100%',flexBasis:'100%'}}><GateHistory gateId={g.id} companyId={companyId}/></div>}
           <span className={`adm-status ${stateClass[g.operational_state] ?? ''}`}>
             {stateLabel[g.operational_state] ?? g.operational_state}
           </span>
