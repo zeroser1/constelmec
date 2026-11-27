@@ -135,7 +135,7 @@ def find_or_create_backup_folder(s: requests.Session, token: str) -> str:
              "and appProperties has { key='constelmec_backup' and value='production' }")
     response = s.get("https://www.googleapis.com/drive/v3/files",
                      headers=headers, params={"q": query, "fields": "nextPageToken,files(id,name)",
-                                              "page_size": 100}, timeout=30)
+                                              "pageSize": 100}, timeout=30)
     response.raise_for_status()
     folders = response.json().get("files", [])
     if len(folders) > 1:
