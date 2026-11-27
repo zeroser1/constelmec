@@ -527,16 +527,16 @@ export type TechnicianFacilityAssignment = {
   active: boolean;
 };
 
-export function useTechnicianProfiles(companyId: string | undefined) {
+export function useTechnicianProfiles(companyId: string | undefined, platformAdmin = false) {
   return useQuery({
-    queryKey: ['technicians', companyId],
+    queryKey: ['technicians', companyId, platformAdmin],
     enabled: !!companyId && !!supabase,
     queryFn: async (): Promise<Technician[]> => {
-      const { data, error } = await supabase!
+      const profiles = supabase!
         .from('technician_profiles')
-        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active')
-        .eq('company_id', companyId!)
-        .order('last_name', { ascending: true });
+        .select('id,company_id,first_name,last_name,work_phone,work_email,specialty,driving_authorized,license_expires_on,active');
+      const visibleProfiles = platformAdmin ? profiles : profiles.eq('company_id', companyId!);
+      const { data, error } = await visibleProfiles.order('last_name', { ascending: true });
       if (error) throw new Error(error.message);
       return unwrap<Technician[]>(data);
     },

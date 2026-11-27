@@ -69,6 +69,7 @@ export default function PlatformAdminControl({
           companies={companies}
           orders={orders}
           technicians={technicians}
+          platformAdmin
           embedded
         />
       )}

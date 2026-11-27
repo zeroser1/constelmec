@@ -14,16 +14,16 @@ import {
 
 type Tab = 'ficha' | 'empresa' | 'instalaciones';
 
-type Props = { companies: Company[] };
+type Props = { companies: Company[]; platformAdmin?: boolean };
 
-export default function TechnicianManager({ companies }: Props) {
+export default function TechnicianManager({ companies, platformAdmin = false }: Props) {
   const [companyId, setCompanyId]       = useState('');
   const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
   const [tab, setTab]                   = useState<Tab>('ficha');
   const [companyError, setCompanyError] = useState('');
   const [facilityError, setFacilityError] = useState('');
 
-  const techsQ              = useTechnicianProfiles(companyId || undefined);
+  const techsQ              = useTechnicianProfiles(companyId || undefined, platformAdmin);
   const facilitiesQ         = useFacilities(companyId || undefined);
   const companyAssignmentsQ = useTechnicianCompanyAssignments(companyId || undefined);
   const enabledQ = useEnabledCompanyTechnicians(companyId || undefined);
