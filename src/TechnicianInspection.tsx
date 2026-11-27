@@ -48,15 +48,21 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
  // Load photos when visitId becomes known (backend may not exist yet — degrades silently)
  useEffect(()=>{
   if(!visitId||!companyId)return;
+  let active=true;
   void(async()=>{try{
    const{data}=await supabase!.rpc('get_visit_maintenance_photos',{p_company_id:companyId,p_visit_id:visitId});
-   if(!data||!Array.isArray(data))return;
-   const grouped:Record<string,PhotoState[]>={};
-   for (const p of data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>) {
-    (grouped[p.control_key] ??= []).push({id:p.id,path:p.storage_path,bucket:p.bucket,phase:p.phase,status:'confirmed'});
-   }
-   setPhotos(grouped);
+   if(!active||!Array.isArray(data))return;
+   setPhotos(current=>{
+    const merged={...current};
+    for (const p of data as Array<{id:string;control_key:string;phase:string;storage_path:string;bucket:string}>) {
+     const photosForControl=merged[p.control_key]??[];
+     if(photosForControl.some(photo=>photo.id===p.id))continue;
+     merged[p.control_key]=[...photosForControl,{id:p.id,path:p.storage_path,bucket:p.bucket,phase:p.phase,status:'confirmed'}];
+    }
+    return merged;
+   });
   }catch{/* backend not ready */}})();
+  return ()=>{active=false};
  },[visitId,companyId]);
  const uploadPhoto=async(key:string,phase:string,file:File)=>{
   if(!visitId||!companyId){setPhotoErr(e=>({...e,[key]:'Iniciá la inspección antes de subir fotos.'}));return;}
@@ -81,7 +87,10 @@ export default function TechnicianInspection({orderId,gateCode,companyId,onDone,
    // Step 3: confirm
    const{error:confErr}=await supabase!.rpc('tech_confirm_maintenance_photo',{p_photo_id:photo_id});
    if(confErr)throw new Error(confErr.message);
-   setPhotos(p=>({...p,[key]:(p[key]??[]).map(ph=>ph.id===tempId?{id:photo_id,path:storage_path,phase,status:'confirmed',bucket}:ph)}));
+   setPhotos(current=>{
+    const photosForControl=(current[key]??[]).filter(photo=>photo.id!==tempId&&photo.id!==photo_id);
+    return {...current,[key]:[...photosForControl,{id:photo_id,path:storage_path,phase,status:'confirmed',bucket}]};
+   });
   }catch(e){
    setPhotos(p=>({...p,[key]:(p[key]??[]).filter(ph=>ph.id!==tempId)}));
    setPhotoErr(pe=>({...pe,[key]:(e as Error).message}));
