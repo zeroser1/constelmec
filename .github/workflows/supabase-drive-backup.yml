@@ -1,0 +1,66 @@
+name: CONSTELMEC encrypted Supabase backup to Drive
+
+on:
+  # Manual validation only. Do not enable schedule until restore is verified.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: constelmec-production-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.81.3 # Pin v2: CLI v3 changed hosted-project defaults
+      - name: Install backup dependencies
+        run: python -m pip install --disable-pip-version-check -r scripts/backup-requirements.txt
+      - name: Run offline backup unit tests
+        run: python -m unittest discover -s scripts -p 'test_backup_*.py'
+      - name: Validate required secrets and source
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in SUPABASE_DB_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GDRIVE_CLIENT_ID GDRIVE_CLIENT_SECRET GDRIVE_REFRESH_TOKEN BACKUP_ENCRYPTION_PASSWORD; do
+            test -n "${!key}" || { echo "Missing GitHub Actions secret: $key"; exit 1; }
+          done
+          test "$SUPABASE_URL" = 'https://xpguxfttlxqpdlbhsjud.supabase.co' || { echo 'Wrong Supabase project'; exit 1; }
+      - name: Export Supabase database (roles, schema, data)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/constelmec-db"
+          supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f "$RUNNER_TEMP/constelmec-db/roles.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/constelmec-db/schema.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -f "$RUNNER_TEMP/constelmec-db/data.sql"
+          test -s "$RUNNER_TEMP/constelmec-db/roles.sql"
+          test -s "$RUNNER_TEMP/constelmec-db/schema.sql"
+          test -s "$RUNNER_TEMP/constelmec-db/data.sql"
+      - name: Encrypt, upload, and verify database + Storage backup
+        env:
+          DB_DUMP_DIR: ${{ runner.temp }}/constelmec-db
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+          BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+        run: python scripts/backup_to_drive.py
