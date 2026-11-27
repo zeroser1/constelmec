@@ -1,0 +1,33 @@
+name: Publish CONSTELMEC Backup OAuth info
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backup-site/**'
+      - '.github/workflows/backup-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-backup-info
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: backup-site
+      - id: deployment
+        uses: actions/deploy-pages@v4
