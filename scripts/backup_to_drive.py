@@ -128,8 +128,37 @@ def oauth_access_token(s: requests.Session) -> str:
     return r.json()["access_token"]
 
 
-def upload_drive(s: requests.Session, path: Path, name: str, folder_id: str) -> str:
+def find_or_create_backup_folder(s: requests.Session, token: str) -> str:
+    """Use a folder CREATED by this OAuth app; drive.file cannot access arbitrary old folders."""
+    headers = {"Authorization": f"Bearer {token}"}
+    query = ("mimeType = 'application/vnd.google-apps.folder' and trashed = false "
+             "and appProperties has { key='constelmec_backup' and value='production' }")
+    response = s.get("https://www.googleapis.com/drive/v3/files",
+                     headers=headers, params={"q": query, "fields": "nextPageToken,files(id,name)",
+                                              "page_size": 100}, timeout=30)
+    response.raise_for_status()
+    folders = response.json().get("files", [])
+    if len(folders) > 1:
+        raise RuntimeError("Multiple backup folders detected; manual reconciliation required")
+    if folders:
+        return folders[0]["id"]
+    response = s.post("https://www.googleapis.com/drive/v3/files",
+                      headers={**headers, "Content-Type": "application/json"},
+                      params={"fields": "id,name"},
+                      json={"name": "CONSTELMEC_BACKUPS_AUTOMATICOS",
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "appProperties": {"constelmec_backup": "production"}},
+                      timeout=30)
+    response.raise_for_status()
+    folder_id = response.json()["id"]
+    print(f"Created app-managed Drive folder: {folder_id}. "
+          "Move it manually into CONSTELMEC_DATA/07_BACKUPS_SUPABASE if desired.")
+    return folder_id
+
+
+def upload_drive(s: requests.Session, path: Path, name: str) -> str:
     token = oauth_access_token(s)
+    folder_id = find_or_create_backup_folder(s, token)
     headers = {"Authorization": f"Bearer {token}"}
     size = path.stat().st_size
     init = s.post("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size,md5Checksum",
@@ -205,7 +234,6 @@ def main():
     password = required("BACKUP_ENCRYPTION_PASSWORD")
     if len(password) < 24:
         raise RuntimeError("BACKUP_ENCRYPTION_PASSWORD must have 24+ characters")
-    folder_id = required("GDRIVE_BACKUP_FOLDER_ID")
     dump_dir = Path(required("DB_DUMP_DIR"))
     db_files = [dump_dir / n for n in ("roles.sql", "schema.sql", "data.sql")]
     for file in db_files:
@@ -227,7 +255,7 @@ def main():
                     "storage_objects": objects}
         archive = root / f"constelmec-prod-{timestamp}.zip"
         count = create_archive(work, password, manifest, archive)
-        remote_id = upload_drive(s, archive, archive.name, folder_id)
+        remote_id = upload_drive(s, archive, archive.name)
         print(f"PASS backup: {count} files; {len(objects)} Storage objects; "
               f"encrypted={archive.stat().st_size} bytes; Drive file ID={remote_id}")
 
