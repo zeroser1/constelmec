@@ -1,52 +1,62 @@
 # CONSTELMEC — backups cifrados Supabase → Google Drive
 
-**Estado inicial: preparado, NO activado.** El cron empieza únicamente después de integrar el PR a la rama por defecto, configurar secretos y verificar un primer PASS manual. No sustituye la comprobación de un backup previo al release del PR #9.
+**Estado: PR en borrador, no activado, no se ha realizado un backup real.** No habilitar release PR #9 sin copia recuperable validada.
 
-## Destino y alcance
+## Página pública para OAuth (GitHub Pages)
 
-- Google Drive: CONSTELMEC_DATA/07_BACKUPS_SUPABASE
-- Carpeta: https://drive.google.com/drive/folders/1KRTJuK_fcilZ72pAda4UQTAZ_L4xaDUQ
-- Proyecto fijo: xpguxfttlxqpdlbhsjud (producción); el script rechaza otros SUPABASE_URL.
-- Diario a las **06:00 UTC (03:00 Argentina)**, más ejecución manual en GitHub Actions. GitHub puede retrasar el cron.
-- Roles, esquema y datos SQL mediante Supabase CLI v2; descarga de todos los buckets y objetos de Supabase Storage accesibles con la clave de servicio.
-- ZIP AES-256 con contraseña fuerte; manifiesto con tamaños y SHA-256; comprobación local de ZIP y de tamaño/MD5 del archivo remoto en Drive.
-- Los respaldos anteriores **no se eliminan automáticamente**. Definir retención después de medir volumen.
+- Página principal: `https://zeroser1.github.io/constelmec/`
+- Política de privacidad: `https://zeroser1.github.io/constelmec/privacy.html`
+- Archivos: `backup-site/index.html` y `backup-site/privacy.html`.
+- Workflow: `.github/workflows/backup-pages.yml` publica **solamente** `backup-site/`.
+- **Para activar:** después del merge, ir a GitHub → Settings → Pages → Build and deployment → Source **GitHub Actions**; ejecutar `Publish CONSTELMEC Backup OAuth info` si no se ejecuta automáticamente. Comprobar que ambas URL cargan antes de usarlas en Google OAuth.
+- En Google Auth Platform → Información de marca: colocar las URL públicas de inicio y privacidad. Para dominios autorizados/verificación, seguir lo que Google solicite; puede requerir verificación de propiedad. No inventar URL ni asumir que publicar elimina los requisitos de verificación.
 
-## Activación
+## Permisos mínimos de Google Drive
 
-En GitHub → zeroser1/constelmec → Settings → Secrets and variables → Actions, crear los siguientes **Repository secrets**:
+**Solicitar solamente** `https://www.googleapis.com/auth/drive.file`, NO `https://www.googleapis.com/auth/drive`. El permiso `drive.file` permite administrar archivos/carpetas creados por la aplicación o autorizados explícitamente para ella.
 
-| Secreto | Valor |
+**Importante:** el folder `CONSTELMEC_DATA/07_BACKUPS_SUPABASE` creado anteriormente con otro cliente OAuth **no es automáticamente accesible** con `drive.file`. Para respetar el permiso mínimo, la primera ejecución crea una carpeta nueva llamada `CONSTELMEC_BACKUPS_AUTOMATICOS` en Mi unidad. El administrador puede mover manualmente esa carpeta dentro de `CONSTELMEC_DATA/07_BACKUPS_SUPABASE`. La carpeta creada por la aplicación conserva el acceso de `drive.file`; no reemplazarla ni borrarla sin adaptar la configuración. Se identifica con `appProperties.constelmec_backup=production`.
+
+**OAuth externo en Testing:** refresh tokens para scopes Drive suelen expirar a los 7 días. Antes de depender del cron diario, pasar a producción cuando Google lo permita; pueden existir avisos o requisitos de verificación. No solicitar secretos en un chat.
+
+## Configuración de GitHub Actions
+
+Crear 7 **Repository secrets** en `zeroser1/constelmec → Settings → Secrets and variables → Actions`:
+
+| Secreto | Descripción |
 | --- | --- |
-| SUPABASE_DB_URL | Connection string PostgreSQL de producción (Supabase → Connect) |
-| SUPABASE_URL | https://xpguxfttlxqpdlbhsjud.supabase.co |
-| SUPABASE_SERVICE_ROLE_KEY | Clave de servidor de producción; nunca usarla en el frontend |
-| GDRIVE_CLIENT_ID | Client ID de una app OAuth de Google Cloud |
-| GDRIVE_CLIENT_SECRET | Client secret de esa app OAuth |
-| GDRIVE_REFRESH_TOKEN | Refresh token del propietario de Drive, acceso offline y scope https://www.googleapis.com/auth/drive |
-| BACKUP_ENCRYPTION_PASSWORD | Contraseña aleatoria de 32+ caracteres, guardada también fuera de GitHub |
+| `SUPABASE_DB_URL` | Connection string PostgreSQL del proyecto de producción (Supabase → Connect) |
+| `SUPABASE_URL` | `https://xpguxfttlxqpdlbhsjud.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave privada del servidor de Supabase producción |
+| `GDRIVE_CLIENT_ID` | Client ID de Google OAuth Desktop |
+| `GDRIVE_CLIENT_SECRET` | Client secret de Google OAuth Desktop |
+| `GDRIVE_REFRESH_TOKEN` | Refresh token de la cuenta autorizada con scope **drive.file** y `access_type=offline` |
+| `BACKUP_ENCRYPTION_PASSWORD` | Contraseña aleatoria de 32+ caracteres guardada también fuera de GitHub |
 
-Para Google: habilitar Google Drive API, configurar pantalla de consentimiento OAuth y obtener un refresh token con el flujo OAuth legítimo. Una app en modo Testing puede generar tokens de corta duración; configurar el estado de publicación adecuado. Mantener la carpeta privada.
+No publicar tokens, claves, passwords, dumps ni archivos JSON de OAuth. La autorización del conector Drive de ChatGPT no se comparte con GitHub Actions.
 
-**Las credenciales del conector Google Drive de ChatGPT no se pueden reutilizar automáticamente desde GitHub Actions.** Nunca copiar tokens ni claves en un chat ni commitearlos.
+## Ejecución y verificación
 
-Después del merge del PR, ejecutar Actions → CONSTELMEC encrypted Supabase backup to Drive → Run workflow. Comprobar PASS y que el ZIP aparezca en Drive. Descargar y descifrar con la contraseña guardada fuera de GitHub. Repetir tras rotar credenciales.
+- Cron diario **06:00 UTC / 03:00 Buenos Aires**, más ejecución manual `workflow_dispatch`.
+- Dump Supabase CLI v2: `roles.sql`, `schema.sql`, `data.sql`.
+- Descarga de todos los objetos Storage accesibles; compresión y cifrado ZIP AES-256.
+- Manifiesto con SHA-256, test de ZIP local, subida resumable y verificación remota por tamaño y MD5.
+- **No se eliminan backups antiguos automáticamente**; evaluar retención tras medir consumo.
+- Luego de integrar el PR, ejecutar manualmente el workflow y confirmar `PASS` en Actions y archivo ZIP en Drive.
+- Descargar el ZIP y hacer **restauración de prueba en un proyecto aislado**. El checksum no demuestra por sí solo que una restauración funcione.
 
 ## Recuperación
 
-1. Descargar el ZIP desde Drive y descifrarlo con 7-Zip u otra herramienta compatible con ZIP AES-256.
-2. Revisar manifest.json y comprobar los SHA-256 de los archivos extraídos.
-3. Crear un proyecto Supabase de recuperación aislado. Nunca restaurar directamente sobre producción sin ensayo y autorización.
-4. Restaurar roles.sql, schema.sql y data.sql siguiendo la guía oficial y atendiendo a extensiones/configuración del proyecto.
-5. Reimportar los archivos storage/<bucket>/<path> a los buckets respectivos conservando rutas y permisos.
-6. Verificar auth.users, conteos de tablas, Storage, RLS, RPC, órdenes e historial. Proveedores OAuth, SMTP, Edge Functions, secretos y Vercel requieren respaldo/configuración aparte.
+1. Descargar el ZIP, descifrar con 7-Zip o herramienta compatible con AES ZIP.
+2. Comprobar `manifest.json` y hashes SHA-256.
+3. Restaurar SQL a un proyecto de recuperación aislado siguiendo [guía Supabase](https://supabase.com/docs/guides/self-hosting/restore-from-platform).
+4. Restaurar manualmente objetos `storage/<bucket>/<path>`, conservando rutas y políticas.
+5. Validar usuarios, datos, RLS, órdenes, inspecciones y fotos. Configuración de Auth, secretos, Edge Functions, Vercel y SMTP se respaldan por separado.
 
-Referencia: https://supabase.com/docs/guides/self-hosting/restore-from-platform
+## Límites y seguridad
 
-## Límites
-
-- SQL y Storage se capturan secuencialmente; no constituyen un snapshot atómico entre servicios. Coordinar ventana sin escrituras para un pre-release.
-- Supabase CLI excluye esquemas internos administrados. No es una copia física de toda la plataforma.
-- No incluye configuración externa de Vercel, secretos, SMTP, proveedores OAuth o repositorio GitHub.
-- Verificar integridad **no es** ensayar una restauración. Hacer una restauración de prueba antes de depender de esto como único backup.
-- Fallará ante secretos faltantes, URL de proyecto incorrecta, descarga fallida o inconsistencia de Drive. Supervisar las alertas de GitHub Actions.
+- SQL y Storage se capturan secuencialmente, **no** como snapshot atómico. Para un release crítico, detener escrituras durante la copia o usar un snapshot oficial.
+- Supabase CLI excluye ciertos esquemas internos gestionados; no equivale a una imagen completa del proyecto.
+- El scope `drive.file` no da acceso automático a carpetas creadas por otra aplicación.
+- Google OAuth en Testing puede hacer caducar tokens; verificar publicación antes de habilitar cron.
+- Los backups pueden contener información sensible. Nunca guardar el archivo ZIP en un repositorio público ni publicar su contraseña.
