@@ -61,15 +61,25 @@ class BackupTests(unittest.TestCase):
             payload = root / "payload"
             payload.mkdir()
             (payload / "schema.sql").write_text("select 1;", encoding="utf-8")
+            (payload / "managed-schema.sql").write_text(
+                "CREATE POLICY fixture ON storage.objects FOR SELECT TO authenticated USING (false);",
+                encoding="utf-8",
+            )
             archive = root / "backup.zip"
             count = create_archive(payload, "a-strong-test-password-32-characters",
                                    {"project_ref": "test"}, archive)
-            self.assertEqual(count, 1)
+            self.assertEqual(count, 2)
             with pyzipper.AESZipFile(archive) as zipped:
                 zipped.setpassword(b"a-strong-test-password-32-characters")
                 self.assertEqual(zipped.read("schema.sql"), b"select 1;")
                 manifest = json.loads(zipped.read("manifest.json"))
-                self.assertEqual(manifest["files"][0]["path"], "schema.sql")
+                self.assertEqual(
+                    {item["path"] for item in manifest["files"]},
+                    {"schema.sql", "managed-schema.sql"},
+                )
+                self.assertEqual(
+                    zipped.read("managed-schema.sql"), (payload / "managed-schema.sql").read_bytes()
+                )
 
 
 if __name__ == "__main__":
