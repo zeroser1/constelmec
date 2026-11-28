@@ -10,9 +10,9 @@ test.describe('preventive recurrence windows', () => {
 
   test('second business week excludes weekends and supplied holidays', () => {
     const rule = { mode: 'business_week' as const, week: 2 as const, everyMonths: 1 as const };
-    expect(occurrenceWindow('2026-11-01', rule, 0)).toEqual({ start: '2026-11-02', end: '2026-11-06' });
-    expect(occurrenceWindow('2026-11-01', rule, 0, ['2026-11-02', '2026-11-06']))
-      .toEqual({ start: '2026-11-03', end: '2026-11-05' });
+    expect(occurrenceWindow('2026-11-01', rule, 0)).toEqual({ start: '2026-11-09', end: '2026-11-13' });
+    expect(occurrenceWindow('2026-11-01', rule, 0, ['2026-11-09', '2026-11-13']))
+      .toEqual({ start: '2026-11-10', end: '2026-11-12' });
   });
 
   test('semiannual recurrence uses anchor month rather than previous occurrence', () => {
@@ -25,4 +25,9 @@ test.describe('preventive recurrence windows', () => {
     expect(() => occurrenceWindow('2026-02-30', rule, 0)).toThrow();
     expect(() => occurrenceWindow('2026-01-01', rule, -1)).toThrow();
   });
+});
+
+test('partial first week is not counted as first business week', () => {
+  const rule = { mode: 'business_week' as const, week: 1 as const, everyMonths: 1 as const };
+  expect(occurrenceWindow('2026-11-01', rule, 0)).toEqual({ start: '2026-11-02', end: '2026-11-06' });
 });
