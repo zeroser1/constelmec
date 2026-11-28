@@ -1,0 +1,287 @@
+/* Shared visual tokens for the operational interface. */
+:root {
+  --cm-canvas: #f1f5f9;
+  --cm-surface: #ffffff;
+  --cm-raised: #e8eff7;
+  --cm-line: #d4dfeb;
+  --cm-text: #112740;
+  --cm-muted: #52667d;
+  --cm-link: #174d8b;
+  --cm-focus: #286fc6;
+  --cm-good: #177346;
+  --cm-warn: #925105;
+  --cm-critical: #b31632;
+  --cm-radius: 16px;
+  --cm-hover: 150ms;
+  --cm-select: 200ms;
+  --cm-shadow: 0 1px 2px #142b4310, 0 10px 25px -19px #142b434d;
+}
+
+:root[data-theme="dark"] {
+  --cm-canvas: #0b1522;
+  --cm-surface: #15263a;
+  --cm-raised: #21384f;
+  --cm-line: #344c64;
+  --cm-text: #eef5fc;
+  --cm-muted: #b5c6da;
+  --cm-link: #9bcaff;
+  --cm-focus: #92c2ff;
+  --cm-good: #81e1ae;
+  --cm-warn: #ffcc81;
+  --cm-critical: #ff98aa;
+  --cm-shadow: 0 12px 30px -22px #000b;
+}
+
+:is(.appshell-root, .real-shell, .adm-shell) :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--cm-focus);
+  outline-offset: 3px;
+}
+
+.appshell-root,
+.appshell-content {
+  background: var(--cm-canvas);
+  color: var(--cm-text);
+}
+
+.appshell-root .appshell-sidebar {
+  background: linear-gradient(165deg, #142b44 0, #0c1c30 70%);
+  border-inline-end: 1px solid #223b54;
+}
+
+.appshell-root .appshell-brand-name {
+  font-family: Manrope, "DM Sans", Arial, sans-serif;
+  letter-spacing: -.025em;
+}
+
+.appshell-root .appshell-nav-btn {
+  position: relative;
+  border-radius: 10px;
+  transition: background-color var(--cm-hover), color var(--cm-hover);
+}
+
+.appshell-root .appshell-nav-btn.active {
+  background: #294461;
+  color: #fff;
+  box-shadow: inset 3px 0 #ff6378;
+}
+
+.appshell-root .appshell-nav-btn:focus-visible,
+.appshell-root .appshell-mobile-close:focus-visible {
+  outline-color: #9bcaff;
+  outline-offset: -2px;
+}
+
+.appshell-mobile-close { display: none; }
+
+.real-shell .real-panel,
+.adm-shell :is(.adm-card, .adm-metric),
+.cust-shell .cust-gate-card,
+.tech-shell .tech-order-card {
+  border-radius: var(--cm-radius);
+  box-shadow: var(--cm-shadow);
+}
+
+.real-shell .real-panel h1,
+.adm-shell .adm-heading h1,
+.cust-shell .cust-title {
+  font-family: Manrope, "DM Sans", Arial, sans-serif;
+  letter-spacing: -.045em;
+}
+
+.cust-shell .cust-gate-card,
+.real-shell .real-outline {
+  transition: border-color var(--cm-hover), background-color var(--cm-hover);
+}
+
+.cust-shell .cust-gate-card:hover,
+.real-shell .real-outline:hover {
+  border-color: var(--cm-focus);
+}
+
+.work-dashboard {
+  color: var(--cm-text);
+  font-family: "DM Sans", Arial, sans-serif;
+}
+
+.work-filters,
+.work-metrics,
+.work-card {
+  min-width: 0;
+}
+
+.work-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface);
+}
+
+.work-filters label {
+  display: grid;
+  gap: 5px;
+  min-width: min(100%, 10rem);
+  color: var(--cm-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.work-filters :is(input, select),
+.work-action {
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid var(--cm-line);
+  border-radius: 9px;
+  background: var(--cm-surface);
+  color: var(--cm-text);
+  font: inherit;
+}
+
+.work-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.work-metric,
+.work-card {
+  padding: 16px;
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface);
+  box-shadow: var(--cm-shadow);
+}
+
+.work-metric { border-block-start: 3px solid currentColor; color: var(--cm-link); }
+.work-metric[data-tone="completed"] { color: var(--cm-good); }
+.work-metric[data-tone="pending"] { color: var(--cm-warn); }
+.work-metric[data-tone="neutral"] { color: var(--cm-muted); }
+.work-metric dt { color: var(--cm-muted); font-size: 13px; font-weight: 700; }
+.work-metric dd { margin: 4px 0 0; font: 800 clamp(1.55rem, 4vw, 2rem)/1.2 Manrope, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+
+.work-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--cm-line);
+  border-radius: 12px;
+  background: var(--cm-raised);
+}
+
+.work-segments button,
+.work-action {
+  min-height: 40px;
+  cursor: pointer;
+  transition: background-color var(--cm-select), border-color var(--cm-select);
+}
+
+.work-segments button {
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cm-muted);
+  font: 700 13px "DM Sans", Arial, sans-serif;
+}
+
+.work-segments button[aria-pressed="true"],
+.work-segments button:hover,
+.work-action:hover {
+  border-color: var(--cm-line);
+  background: var(--cm-surface);
+  color: var(--cm-link);
+}
+
+.work-card { margin-top: 10px; }
+.work-card[data-connection="connected"] { border-inline-start: 4px solid var(--cm-good); }
+.work-card[data-connection="delayed"] { border-inline-start: 4px solid var(--cm-warn); }
+.work-history { margin-bottom: 12px; }
+.work-empty { padding: 18px 12px; color: var(--cm-muted); text-align: center; }
+.work-card-action { margin-top: 10px; font-size: 13px; }
+.work-connection { color: var(--cm-warn); font-size: 13px; font-weight: 700; }
+.work-card[data-connection="connected"] .work-connection { color: var(--cm-good); }
+.work-progress { height: 7px; overflow: hidden; border-radius: 8px; background: var(--cm-raised); }
+.work-progress > div { height: 100%; background: var(--cm-link); }
+.work-note,
+.work-alert { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.work-note { color: var(--cm-muted); margin-top: 16px; }
+.work-alert { color: var(--cm-critical); margin-bottom: 10px; }
+
+.company-management {
+  --company-subtle: #f5f8fc;
+  --company-success-surface: #e5f4eb;
+  --company-error-surface: #fceaf0;
+  --company-primary: #174d8b;
+  --company-on-primary: #fff;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: clamp(16px, 4vw, 28px);
+  color: var(--cm-text);
+  font-family: "DM Sans", Arial, sans-serif;
+}
+
+[data-theme="dark"] .company-management {
+  --company-subtle: #192c42;
+  --company-success-surface: #1a3b34;
+  --company-error-surface: #462b3a;
+  --company-primary: #9bcaff;
+  --company-on-primary: #112740;
+}
+
+.company-management[data-detail="true"] { max-width: 1400px; }
+.company-management-title {
+  margin: 6px 0 0;
+  color: var(--cm-text);
+  font: 800 clamp(1.55rem, 3vw, 2rem)/1.2 Manrope, "DM Sans", Arial, sans-serif;
+  letter-spacing: -.035em;
+}
+.company-management [aria-label="Buscar empresas"]::placeholder { color: var(--cm-muted); opacity: 1; }
+.company-management-layout { display: grid; gap: 20px; align-items: start; }
+.company-management[data-detail="true"] .company-management-layout {
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+}
+.company-management-results,
+.company-management-detail { min-width: 0; }
+.company-management-detail { overflow-wrap: anywhere; }
+.company-management-table {
+  overflow-x: auto;
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface);
+}
+
+@media (max-width: 900px) {
+  .company-management[data-detail="true"] .company-management-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 767px) {
+  .appshell-root .appshell-sidebar:not(.mobile-open) { visibility: hidden; }
+  .appshell-root .appshell-sidebar.mobile-open { visibility: visible; }
+  .appshell-mobile-close {
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 8px;
+    background: #294461;
+    color: #fff;
+    cursor: pointer;
+  }
+  .work-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --cm-hover: 0ms; --cm-select: 0ms; }
+  .appshell-root .appshell-sidebar,
+  .appshell-root .appshell-sidebar * { transition-duration: 0ms; }
+}

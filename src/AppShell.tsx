@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, LogOut, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import ThemeSwitch from './ThemeSwitch';
 import logo from './assets/logo.png';
 import './AppShell.css';
@@ -33,16 +33,28 @@ export default function AppShell({
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
 
-  const closeMobile = () => setMobileOpen(false);
+  const closeMobile = () => {
+    setMobileOpen(false);
+    menuButton.current?.focus();
+  };
+
+  useEffect(() => {
+    if (mobileOpen) closeButton.current?.focus();
+  }, [mobileOpen]);
 
   return (
     <div className="appshell-root">
       {/* Mobile topbar strip */}
       <button
         className="appshell-hamburger"
+        ref={menuButton}
         onClick={() => setMobileOpen(true)}
         aria-label="Abrir menú"
+        aria-expanded={mobileOpen}
+        aria-controls="appshell-sidebar"
       >
         <Menu size={20} />
         {brand}
@@ -55,6 +67,8 @@ export default function AppShell({
 
       {/* Sidebar */}
       <aside
+        id="appshell-sidebar"
+        onKeyDown={event => { if (mobileOpen && event.key === 'Escape') closeMobile(); }}
         className={[
           'appshell-sidebar',
           collapsed ? 'collapsed' : '',
@@ -68,6 +82,9 @@ export default function AppShell({
             <div className="appshell-brand-name">{brand}</div>
             <div className="appshell-brand-sub">{userEmail}</div>
           </div>
+          <button ref={closeButton} className="appshell-mobile-close" onClick={closeMobile} aria-label="Cerrar menú">
+            <X size={20} />
+          </button>
         </div>
 
         {/* Nav items */}
@@ -76,7 +93,9 @@ export default function AppShell({
             <button
               key={key}
               className={['appshell-nav-btn', activeSection === key ? 'active' : ''].filter(Boolean).join(' ')}
-              onClick={() => { onNavigate(key); closeMobile(); }}
+              aria-current={activeSection === key ? 'page' : undefined}
+              title={label}
+              onClick={() => { onNavigate(key); if (mobileOpen) closeMobile(); }}
             >
               <span className="appshell-nav-btn-icon"><Icon size={18} /></span>
               <span className="appshell-nav-btn-label">{label}</span>
