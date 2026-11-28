@@ -58,6 +58,7 @@ export function occurrenceWindow(
     return { start: date, end: date };
   }
   if (!Number.isInteger(rule.week) || rule.week < 1 || rule.week > 5) throw new Error('Semana inválida');
+  for (const holiday of holidayDates) parseDate(holiday);
   const holidays = new Set(holidayDates);
   // Calendar weeks start on Monday. The first week intersects the first day of the month.
   const first = new Date(Date.UTC(year, month, 1, 12));
