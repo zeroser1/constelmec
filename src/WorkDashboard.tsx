@@ -79,21 +79,17 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
  for(const o of orders){if(o.assigned_technician_id&&o.technician_profiles)techMap.set(o.assigned_technician_id,`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`);}
  const techEntries=[...techMap.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
 
- const card={border:'1px solid #e2e8f0',borderRadius:12,padding:14,marginTop:10,background:'#fff'} as const;
-
  return(
-  <div style={{color:'#14263e'}}>
+  <div className="work-dashboard">
    {/* Filters */}
-   <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:14,alignItems:'flex-end'}}>
-    <label style={{fontSize:13,fontWeight:600}}>
+   <div className="work-filters">
+    <label>
      Fecha
-     <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
-      style={{display:'block',padding:'6px 10px',border:'1px solid #d1dbe5',borderRadius:7,fontSize:14,marginTop:4}}/>
+     <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/>
     </label>
-    {techEntries.length>0&&<label style={{fontSize:13,fontWeight:600}}>
+    {techEntries.length>0&&<label>
      Técnico
-     <select value={techFilter} onChange={e=>setTechFilter(e.target.value)}
-      style={{display:'block',padding:'6px 10px',border:'1px solid #d1dbe5',borderRadius:7,fontSize:14,marginTop:4}}>
+     <select value={techFilter} onChange={e=>setTechFilter(e.target.value)}>
       <option value="">Todos</option>
       {techEntries.map(([id,name])=><option key={id} value={id}>{name}</option>)}
      </select>
@@ -101,56 +97,55 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
    </div>
 
    {/* Counters */}
-   <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
+   <dl className="work-metrics">
     {[
-     {label:'Activos',value:active.length,color:'#1876d2'},
-     {label:'Finalizados',value:completed.length,color:'#166534'},
-     {label:'Pendientes',value:pending.length,color:'#92400e'},
-     {label:'Portones únicos',value:uniqueGates,color:'#5b21b6'},
-    ].map(({label,value,color})=>(
-     <div key={label} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'10px 16px',textAlign:'center',minWidth:100}}>
-      <div style={{fontSize:22,fontWeight:800,color}}>{value}</div>
-      <div style={{fontSize:12,color:'#64748b'}}>{label}</div>
+     {label:'Activos',value:active.length,tone:'active'},
+     {label:'Finalizados',value:completed.length,tone:'completed'},
+     {label:'Pendientes',value:pending.length,tone:'pending'},
+     {label:'Portones únicos',value:uniqueGates,tone:'neutral'},
+    ].map(({label,value,tone})=>(
+     <div key={tone} className="work-metric" data-tone={tone}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
      </div>
     ))}
-   </div>
+   </dl>
 
    {/* Sub-tabs */}
-   <div style={{display:'flex',gap:0,marginBottom:14,border:'1px solid #e2e8f0',borderRadius:9,overflow:'hidden',width:'fit-content'}}>
+   <div className="work-segments" role="group" aria-label="Estado del mantenimiento">
     {(['active','completed','pending'] as SubTab[]).map(tab=>{
      const labels:Record<SubTab,string>={active:`Activos (${active.length})`,completed:`Finalizados (${completed.length})`,pending:`Pendientes (${pending.length})`};
-     return <button key={tab} onClick={()=>setSubTab(tab)}
-      style={{padding:'9px 18px',border:'none',background:subTab===tab?'#1876d2':'#fff',color:subTab===tab?'#fff':'#14263e',fontWeight:subTab===tab?700:500,fontSize:13,cursor:'pointer'}}>
+     return <button key={tab} aria-pressed={subTab===tab} onClick={()=>setSubTab(tab)}>
       {labels[tab]}
      </button>;
     })}
    </div>
 
    {/* Live error */}
-   {liveQ.error&&<p role="alert" style={{color:'#b91c1c',display:'flex',gap:6,alignItems:'center',fontSize:13,marginBottom:10}}><ShieldAlert size={14}/>No se pudo obtener datos de seguimiento en vivo: {(liveQ.error as Error).message}</p>}
+   {liveQ.error&&<p role="alert" className="work-alert"><ShieldAlert size={14}/>No se pudo obtener datos de seguimiento en vivo: {(liveQ.error as Error).message}</p>}
 
    {/* Gate history modal */}
-   {historyGate&&<div style={{border:'1px solid #d8e2ee',borderRadius:12,padding:14,margin:'10px 0',background:'#f8fafc'}}>
+   {historyGate&&<div className="work-card work-history">
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
      <strong>Historial del portón</strong>
-     <button onClick={()=>setHistoryGate(null)} style={{border:'none',background:'none',cursor:'pointer',color:'#64748b',fontSize:16}}>✕</button>
+     <button className="work-action" onClick={()=>setHistoryGate(null)} aria-label="Cerrar historial">✕</button>
     </div>
     <GateHistory gateId={historyGate.gateId} orderId={historyGate.orderId}/>
    </div>}
 
    {/* Activos */}
    {subTab==='active'&&<>
-    {active.length===0&&<p style={{color:'#64748b',padding:'20px 0',textAlign:'center'}}>No hay mantenimientos activos en este momento.</p>}
+    {active.length===0&&<p className="work-empty">No hay mantenimientos activos en este momento.</p>}
     {active.map(o=>{
      const live=liveByOrderId.get(o.id);
      const isConnected=live?now-new Date(live.last_seen_at).getTime()<=60000:false;
      const done=live?Number(live.controls_done):0;
      const total=live?Number(live.controls_total):8;
      const techName=live?.technician_name||(o.technician_profiles?`${o.technician_profiles.first_name} ${o.technician_profiles.last_name}`:'Sin técnico');
-     return <article key={o.id} style={{...card,borderLeft:`4px solid ${isConnected?'#166534':'#92400e'}`}}>
+     return <article key={o.id} className="work-card" data-connection={isConnected?'connected':'delayed'}>
       <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
        <strong style={{fontSize:15}}><DoorOpen size={14} style={{verticalAlign:'middle',marginRight:4}}/>{o.gates?.code??'—'} · {o.gates?.description??'Portón'}</strong>
-       <span style={{fontSize:13,fontWeight:700,color:isConnected?'#166534':'#92400e'}}>{isConnected?'● Conectado':'● Sin señal reciente'}</span>
+       <span className="work-connection">{isConnected?'● Conectado':'● Sin señal reciente'}</span>
       </div>
       <div style={{fontSize:13,display:'flex',flexWrap:'wrap',gap:'4px 16px',marginBottom:6}}>
        <span><HardHat size={12} style={{verticalAlign:'middle'}}/> {techName}</span>
@@ -161,12 +156,12 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
       {live&&<>
        <div style={{fontSize:13,marginBottom:4}}>{done} de {total} controles guardados</div>
        <div role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total}
-        style={{height:7,background:'#e2e8f0',borderRadius:8,overflow:'hidden'}}>
-        <div style={{height:'100%',width:Math.min(100,done/total*100)+'%',background:'#1876d2',transition:'width .3s'}}/>
+        className="work-progress">
+        <div style={{width:Math.min(100,done/total*100)+'%'}}/>
        </div>
       </>}
       {o.gate_id&&<button onClick={()=>setHistoryGate({gateId:o.gate_id!,orderId:o.id})}
-       style={{marginTop:10,padding:'8px 12px',border:'1px solid #d1dbe5',borderRadius:7,background:'#fff',fontSize:12,cursor:'pointer'}}>
+       className="work-action work-card-action">
        Ver historial del portón
       </button>}
      </article>;
@@ -175,9 +170,9 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
 
    {/* Finalizados */}
    {subTab==='completed'&&<>
-    {completed.length===0&&<p style={{color:'#64748b',padding:'20px 0',textAlign:'center'}}>No hay mantenimientos finalizados para esta fecha.</p>}
+    {completed.length===0&&<p className="work-empty">No hay mantenimientos finalizados para esta fecha.</p>}
     {completed.map(o=>(
-     <article key={o.id} style={card}>
+     <article key={o.id} className="work-card">
       <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
        <strong style={{fontSize:15}}><DoorOpen size={14} style={{verticalAlign:'middle',marginRight:4}}/>{o.gates?.code??'—'} · {o.gates?.description??'Portón'}</strong>
        <span className="adm-status completed">{statusLabel[o.status]??o.status}</span>
@@ -189,7 +184,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
        <span><Wrench size={12} style={{verticalAlign:'middle'}}/> {svcLabel[o.service_type]??o.service_type}</span>
       </div>
       {o.gate_id&&<button onClick={()=>setHistoryGate({gateId:o.gate_id!,orderId:o.id})}
-       style={{marginTop:10,padding:'8px 12px',border:'1px solid #d1dbe5',borderRadius:7,background:'#fff',fontSize:12,cursor:'pointer'}}>
+       className="work-action work-card-action">
        Ver historial del portón
       </button>}
      </article>
@@ -198,9 +193,9 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
 
    {/* Pendientes */}
    {subTab==='pending'&&<>
-    {pending.length===0&&<p style={{color:'#64748b',padding:'20px 0',textAlign:'center'}}>No hay mantenimientos pendientes para esta fecha.</p>}
+    {pending.length===0&&<p className="work-empty">No hay mantenimientos pendientes para esta fecha.</p>}
     {pending.map(o=>(
-     <article key={o.id} style={card}>
+     <article key={o.id} className="work-card">
       <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
        <strong style={{fontSize:15}}><DoorOpen size={14} style={{verticalAlign:'middle',marginRight:4}}/>{o.gates?.code??'—'} · {o.gates?.description??'Portón'}</strong>
        <span className={'adm-status '+o.status}>{statusLabel[o.status]??o.status}</span>
@@ -215,7 +210,7 @@ export default function WorkDashboard({orders,companyId}:{orders:ServiceOrder[];
     ))}
    </>}
 
-   <p style={{fontSize:12,color:'#94a3b8',marginTop:16,display:'flex',alignItems:'center',gap:6}}>
+   <p className="work-note">
     <Activity size={12}/>Datos en vivo actualizados cada 30 segundos · La señal del técnico se envía cada 30 segundos
    </p>
   </div>

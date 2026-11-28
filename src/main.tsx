@@ -5,6 +5,7 @@ import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import { queryClient } from './lib/queryClient';
 import './styles.css';
+import './experience.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
