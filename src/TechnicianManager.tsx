@@ -88,14 +88,14 @@ export default function TechnicianManager({ companies }: Props) {
         onClick={() => handleSelectTech(tech)}
         style={{
           padding: '10px 14px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-          background: sel ? '#10263e' : 'white',
+          background: sel ? '#10263e' : 'var(--cm-surface)',
           border: `1px solid ${sel ? '#10263e' : '#e0e6ef'}`,
           display: 'flex', flexDirection: 'column', gap: 4,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <HardHat size={13} style={{ color: sel ? '#8aafd4' : '#8295a8', flexShrink: 0 }} />
-          <span style={{ fontWeight: 800, fontSize: 13, color: sel ? 'white' : '#10263e', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+          <span style={{ fontWeight: 800, fontSize: 13, color: sel ? 'white' : 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
             {tech.last_name}, {tech.first_name}
           </span>
         </div>
@@ -106,7 +106,7 @@ export default function TechnicianManager({ companies }: Props) {
             </span>
           )}
           {!tech.active && (
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#8295a8', background: '#8295a818', borderRadius: 12, padding: '2px 8px', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--cm-muted)', background: '#8295a818', borderRadius: 12, padding: '2px 8px', fontFamily: 'Arial,Helvetica,sans-serif' }}>
               Inactivo
             </span>
           )}
@@ -139,15 +139,15 @@ export default function TechnicianManager({ companies }: Props) {
             key={label}
             style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12, padding: '10px 16px', borderBottom: '1px solid #f0f4f9' }}
           >
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#728499', textTransform: 'uppercase', letterSpacing: '0.4px', fontFamily: 'Arial,Helvetica,sans-serif', paddingTop: 1 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--cm-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', fontFamily: 'Arial,Helvetica,sans-serif', paddingTop: 1 }}>
               {label}
             </span>
-            <span style={{ fontSize: 13, color: '#10263e', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+            <span style={{ fontSize: 13, color: 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
               {value}
             </span>
           </div>
         ))}
-        <p style={{ padding: '10px 16px', margin: 0, fontSize: 11, color: '#8295a8', fontFamily: 'Arial,Helvetica,sans-serif', fontStyle: 'italic' }}>
+        <p style={{ padding: '10px 16px', margin: 0, fontSize: 11, color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif', fontStyle: 'italic' }}>
           Los datos de la ficha son de solo lectura. Para modificarlos, contactá al administrador de plataforma.
         </p>
       </div>
@@ -157,7 +157,7 @@ export default function TechnicianManager({ companies }: Props) {
   // ── Render: Empresa tab ───────────────────────────────────────────────────
 
   const renderEmpresaTab = () => {
-    if (companyAssignmentsQ.isLoading) return <p style={{ padding: 16, color: '#8295a8', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Cargando…</p>;
+    if (companyAssignmentsQ.isLoading) return <p style={{ padding: 16, color: 'var(--cm-muted)', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Cargando…</p>;
     if (companyAssignmentsQ.error) return <p style={{ padding: 16, color: '#c41e32', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Error: {companyAssignmentsQ.error.message}</p>;
     const busy = setCompanyActive.isPending;
     return (
@@ -175,7 +175,7 @@ export default function TechnicianManager({ companies }: Props) {
             <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: isEnabled ? '#0a7c42' : '#c41e32', fontFamily: 'Arial,Helvetica,sans-serif' }}>
               {isEnabled ? 'Técnico habilitado para esta empresa' : 'Técnico no habilitado para esta empresa'}
             </p>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#728499', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
               {isEnabled
                 ? 'Puede ser asignado a órdenes de servicio e instalaciones.'
                 : 'No puede ser asignado a órdenes ni instalaciones hasta que esté habilitado.'}
@@ -210,14 +210,14 @@ export default function TechnicianManager({ companies }: Props) {
   const renderInstalacionesTab = () => {
     const busy = setFacilityActive.isPending;
     if (facilityAssignmentsQ.isLoading) {
-      return <p style={{ padding: 16, color: '#8295a8', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Cargando…</p>;
+      return <p style={{ padding: 16, color: 'var(--cm-muted)', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Cargando…</p>;
     }
     if (facilityAssignmentsQ.error) {
       return <p style={{ padding: 16, color: '#c41e32', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Error: {facilityAssignmentsQ.error.message}</p>;
     }
     const activeFacilities = facilities.filter(f => f.active);
     if (activeFacilities.length === 0) {
-      return <p style={{ padding: 16, color: '#8295a8', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Esta empresa no tiene instalaciones activas.</p>;
+      return <p style={{ padding: 16, color: 'var(--cm-muted)', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif' }}>Esta empresa no tiene instalaciones activas.</p>;
     }
     return (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -241,7 +241,7 @@ export default function TechnicianManager({ companies }: Props) {
               key={facility.id}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f0f4f9', gap: 12 }}
             >
-              <span style={{ fontSize: 13, color: '#10263e', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+              <span style={{ fontSize: 13, color: 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
                 {facility.name}
               </span>
               <button
@@ -269,15 +269,15 @@ export default function TechnicianManager({ companies }: Props) {
   // ── Main render ───────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f3f5f8', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--cm-raised)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
       {/* Toolbar */}
       <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Building size={15} style={{ color: '#8295a8' }} />
+          <Building size={15} style={{ color: 'var(--cm-muted)' }} />
           <select
             value={companyId}
             onChange={e => handleCompanyChange(e.target.value)}
-            style={{ border: '1px solid #dfe6ef', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: '#10263e', background: 'white', cursor: 'pointer', minWidth: 220 }}
+            style={{ border: '1px solid var(--cm-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: 'var(--cm-text)', background: 'var(--cm-surface)', cursor: 'pointer', minWidth: 220 }}
           >
             <option value="">— Seleccioná una empresa —</option>
             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -287,45 +287,45 @@ export default function TechnicianManager({ companies }: Props) {
 
       {!companyId ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: '#8295a8', fontSize: 14 }}>Seleccioná una empresa para ver sus técnicos.</p>
+          <p style={{ color: 'var(--cm-muted)', fontSize: 14 }}>Seleccioná una empresa para ver sus técnicos.</p>
         </div>
       ) : (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', gap: 16, margin: '16px 20px' }}>
 
           {/* Left panel — technician list */}
-          <div style={{ width: 260, flexShrink: 0, background: 'white', borderRadius: 12, border: '1px solid #e0e6ef', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ width: 260, flexShrink: 0, background: 'var(--cm-surface)', borderRadius: 12, border: '1px solid var(--cm-line)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid #e8edf4', flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#10263e' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cm-text)' }}>
                 Técnicos {techs.length > 0 && `(${techs.length})`}
               </span>
             </div>
             <div style={{ overflow: 'auto', flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {techsQ.isLoading && <p style={{ color: '#8295a8', fontSize: 13, padding: 4 }}>Cargando…</p>}
+              {techsQ.isLoading && <p style={{ color: 'var(--cm-muted)', fontSize: 13, padding: 4 }}>Cargando…</p>}
               {techsQ.error    && <p style={{ color: '#c41e32', fontSize: 13, padding: 4 }}>Error: {techsQ.error.message}</p>}
               {!techsQ.isLoading && techs.length === 0 && (
-                <p style={{ color: '#8295a8', fontSize: 13, padding: 4 }}>Sin técnicos en esta empresa.</p>
+                <p style={{ color: 'var(--cm-muted)', fontSize: 13, padding: 4 }}>Sin técnicos en esta empresa.</p>
               )}
               {techs.map(renderTechItem)}
             </div>
           </div>
 
           {/* Right panel — detail */}
-          <div style={{ flex: 1, background: 'white', borderRadius: 12, border: '1px solid #e0e6ef', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, background: 'var(--cm-surface)', borderRadius: 12, border: '1px solid var(--cm-line)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {!selectedTech ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <p style={{ color: '#8295a8', fontSize: 14 }}>Seleccioná un técnico para ver su detalle.</p>
+                <p style={{ color: 'var(--cm-muted)', fontSize: 14 }}>Seleccioná un técnico para ver su detalle.</p>
               </div>
             ) : (
               <>
                 {/* Tech header */}
                 <div style={{ padding: '16px', borderBottom: '1px solid #e8edf4', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                  <HardHat size={18} style={{ color: '#8295a8' }} />
+                  <HardHat size={18} style={{ color: 'var(--cm-muted)' }} />
                   <div>
-                    <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#10263e', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
                       {selectedTech.first_name} {selectedTech.last_name}
                     </p>
                     {selectedTech.specialty && (
-                      <p style={{ margin: 0, fontSize: 12, color: '#728499', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
                         {selectedTech.specialty}
                       </p>
                     )}
@@ -343,7 +343,7 @@ export default function TechnicianManager({ companies }: Props) {
                         borderBottom: `2px solid ${tab === t ? '#10263e' : 'transparent'}`,
                         padding: '10px 16px', cursor: 'pointer',
                         fontSize: 13, fontWeight: tab === t ? 800 : 500,
-                        color: tab === t ? '#10263e' : '#728499',
+                        color: tab === t ? 'var(--cm-text)' : 'var(--cm-muted)',
                         fontFamily: 'Arial,Helvetica,sans-serif',
                       }}
                     >

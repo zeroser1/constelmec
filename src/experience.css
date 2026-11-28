@@ -76,7 +76,7 @@
 .real-shell .real-panel,
 .adm-shell :is(.adm-card, .adm-metric),
 .cust-shell .cust-gate-card,
-.tech-shell .tech-order-card {
+.cust-shell .tech-order-card {
   border-radius: var(--cm-radius);
   box-shadow: var(--cm-shadow);
 }
@@ -257,6 +257,56 @@
   border: 1px solid var(--cm-line);
   border-radius: var(--cm-radius);
   background: var(--cm-surface);
+}
+
+.adm-shell :is(.adm-heading h1, .adm-card h2, .adm-calendar-title h2),
+.cust-shell .cust-title,
+.appshell-content [aria-label="Historial del portón"] h3 {
+  color: var(--cm-text);
+}
+
+.adm-shell :is(.adm-heading small, .adm-footnote, .adm-empty, .adm-card-title span),
+.cust-shell :is(.cust-back, .cust-footnote, .cust-gate-loc),
+.cust-shell :is(.tech-profile-name, .tech-order-identifier, .tech-order-notes),
+.qr-demo :is(.qr-photo-credit, .qr-hint, .qr-save-status),
+.app :is(.stat small, .panel small, .page-head p, .panel-head p, .activity p, .mini-row small) {
+  color: var(--cm-muted);
+}
+
+.adm-shell .adm-card-title button,
+.qr-demo :is(.qr-edit, .qr-unverifiable) {
+  color: var(--cm-link);
+}
+.app .logout-demo {
+  background: var(--cm-surface);
+  border-color: var(--cm-line);
+  color: var(--cm-link);
+}
+
+html[data-theme="dark"] .real-shell .real-outline {
+  background: var(--cm-raised) !important;
+  color: var(--cm-text) !important;
+}
+
+.qr-demo .qr-choice.is-ok { background: #15663a; color: #fff; border-color: #15663a; }
+.qr-demo .qr-photo-credit { color: var(--cm-muted) !important; }
+.app .mini-row {
+  border-color: var(--cm-line);
+  background: var(--cm-surface);
+  color: var(--cm-text);
+}
+.app .mini-row > strong { color: var(--cm-link); }
+.app .role-toggle { background: var(--cm-raised); }
+.app .role-toggle button { color: var(--cm-muted); }
+.app .role-toggle button.selected { background: var(--cm-surface); color: var(--cm-text); }
+
+@media (max-width: 850px) {
+  .adm-shell .adm-nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .adm-shell .adm-nav button { flex: 0 0 auto; }
 }
 
 @media (max-width: 900px) {
