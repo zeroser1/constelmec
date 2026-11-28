@@ -61,6 +61,7 @@ No publicar tokens, claves, passwords, dumps ni archivos JSON de OAuth. La autor
 
 - **Fase de validación:** solo ejecución manual `workflow_dispatch`; sin `schedule` ni cron activo. Una vez verificada una restauración aislada, se podrá proponer otro cambio para habilitar el cron diario **06:00 UTC / 03:00 Buenos Aires**.
 - Dump Supabase CLI v2: `roles.sql`, `schema.sql`, `data.sql`. El archivo `managed-schema.sql` agrega las políticas RLS de Auth, Storage y Realtime y los triggers de esos esquemas que llaman a funciones de la aplicación.
+- Antes de armar el ZIP, `scripts/validate_managed_schema.py` comprueba las cuatro políticas de Storage, el trigger de Auth y sus funciones. Cuando cambie una definición requerida, actualizar el validador y sus pruebas en el mismo PR de migración, usando la salida revisada del exportador como referencia.
 - Descarga de todos los objetos Storage accesibles; compresión y cifrado ZIP AES-256.
 - Manifiesto con SHA-256, test de ZIP local, subida resumable y verificación remota por tamaño y MD5.
 - **No se eliminan backups antiguos automáticamente**; evaluar retención tras medir consumo.
