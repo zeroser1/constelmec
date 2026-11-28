@@ -60,7 +60,7 @@ No publicar tokens, claves, passwords, dumps ni archivos JSON de OAuth. La autor
 ## Ejecución y verificación
 
 - **Fase de validación:** solo ejecución manual `workflow_dispatch`; sin `schedule` ni cron activo. Una vez verificada una restauración aislada, se podrá proponer otro cambio para habilitar el cron diario **06:00 UTC / 03:00 Buenos Aires**.
-- Dump Supabase CLI v2: `roles.sql`, `schema.sql`, `data.sql`.
+- Dump Supabase CLI v2: `roles.sql`, `schema.sql`, `data.sql`. El archivo `managed-schema.sql` agrega las políticas RLS de Auth, Storage y Realtime y los triggers de esos esquemas que llaman a funciones de la aplicación.
 - Descarga de todos los objetos Storage accesibles; compresión y cifrado ZIP AES-256.
 - Manifiesto con SHA-256, test de ZIP local, subida resumable y verificación remota por tamaño y MD5.
 - **No se eliminan backups antiguos automáticamente**; evaluar retención tras medir consumo.
@@ -71,7 +71,7 @@ No publicar tokens, claves, passwords, dumps ni archivos JSON de OAuth. La autor
 
 1. Descargar el ZIP, descifrar con 7-Zip o herramienta compatible con AES ZIP.
 2. Comprobar `manifest.json` y hashes SHA-256.
-3. Restaurar SQL a un proyecto de recuperación aislado siguiendo [guía Supabase](https://supabase.com/docs/guides/self-hosting/restore-from-platform).
+3. Restaurar SQL a un proyecto de recuperación aislado siguiendo la [guía de Supabase](https://supabase.com/docs/guides/self-hosting/restore-from-platform). Aplicar `managed-schema.sql` después de cargar el esquema y los datos de la aplicación, en una transacción y con un rol propietario de las tablas afectadas o con un rol administrador del laboratorio. Revisar cualquier colisión de nombres antes de aplicar el archivo. Confirmar que un usuario autorizado puede firmar una foto y que el acceso anónimo se rechaza.
 4. Restaurar manualmente objetos `storage/<bucket>/<path>`, conservando rutas y políticas.
 5. Validar usuarios, datos, RLS, órdenes, inspecciones y fotos. Configuración de Auth, secretos, Edge Functions, Vercel y SMTP se respaldan por separado.
 

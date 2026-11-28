@@ -51,6 +51,9 @@ jobs:
           supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f "$RUNNER_TEMP/constelmec-db/roles.sql"
           supabase db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/constelmec-db/schema.sql"
           supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -f "$RUNNER_TEMP/constelmec-db/data.sql"
+          psql -X -qAt --set=ON_ERROR_STOP=1 "$SUPABASE_DB_URL" \
+            -f scripts/export_managed_schema.sql -o "$RUNNER_TEMP/constelmec-db/managed-schema.sql"
+          grep -Eq '^CREATE POLICY .* ON storage\.objects ' "$RUNNER_TEMP/constelmec-db/managed-schema.sql"
           test -s "$RUNNER_TEMP/constelmec-db/roles.sql"
           test -s "$RUNNER_TEMP/constelmec-db/schema.sql"
           test -s "$RUNNER_TEMP/constelmec-db/data.sql"

@@ -235,7 +235,7 @@ def main():
     if len(password) < 24:
         raise RuntimeError("BACKUP_ENCRYPTION_PASSWORD must have 24+ characters")
     dump_dir = Path(required("DB_DUMP_DIR"))
-    db_files = [dump_dir / n for n in ("roles.sql", "schema.sql", "data.sql")]
+    db_files = [dump_dir / n for n in ("roles.sql", "schema.sql", "data.sql", "managed-schema.sql")]
     for file in db_files:
         if not file.is_file() or file.stat().st_size == 0:
             raise RuntimeError(f"Missing/empty database dump: {file.name}")
