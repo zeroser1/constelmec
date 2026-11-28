@@ -36,7 +36,7 @@ function calendarMonth(anchor: Date, offset: number): { year: number; month: num
 /**
  * Generate a single occurrence window. The anchor month is occurrence zero;
  * callers must persist occurrence identity (rule id + month) to prevent duplicates.
- * Business weeks are Monday-Sunday calendar weeks containing business days.
+ * Business weeks begin on the first Monday of the month; partial weeks are excluded.
  * Public holidays can be supplied by the caller; they are not guessed.
  */
 export function occurrenceWindow(
@@ -60,9 +60,9 @@ export function occurrenceWindow(
   if (!Number.isInteger(rule.week) || rule.week < 1 || rule.week > 5) throw new Error('Semana inválida');
   for (const holiday of holidayDates) parseDate(holiday);
   const holidays = new Set(holidayDates);
-  // Calendar weeks start on Monday. The first week intersects the first day of the month.
+  // Count complete Monday-Friday business weeks, starting at the first Monday in the month.
   const first = new Date(Date.UTC(year, month, 1, 12));
-  const firstMonday = 1 - ((first.getUTCDay() + 6) % 7);
+  const firstMonday = 1 + ((8 - first.getUTCDay()) % 7);
   const weekStart = firstMonday + (rule.week - 1) * 7;
   const available: string[] = [];
   for (let day = Math.max(1, weekStart); day <= Math.min(lastDay, weekStart + 6); day++) {
