@@ -28,15 +28,15 @@ const CATEGORY_COLOR: Record<ContactCategory, string> = {
 // ── input styles ──────────────────────────────────────────────────────────
 
 const inp: React.CSSProperties = {
-  border: '1px solid #dfe6ef', borderRadius: 8, padding: '10px 12px', fontSize: 14,
-  fontFamily: 'Arial,Helvetica,sans-serif', color: '#1b2838', background: 'white',
+  border: '1px solid var(--cm-line)', borderRadius: 8, padding: '10px 12px', fontSize: 14,
+  fontFamily: 'Arial,Helvetica,sans-serif', color: '#1b2838', background: 'var(--cm-surface)',
   width: '100%', boxSizing: 'border-box',
 };
 
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontFamily: 'Arial,Helvetica,sans-serif' }}>
-      <span style={{ fontSize: 11, fontWeight: 800, color: '#728499', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--cm-muted)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
         {label}{required && <span style={{ color: '#c41e32', marginLeft: 2 }}>*</span>}
       </span>
       {children}
@@ -98,12 +98,12 @@ function ContactForm({ initial, facilities, onSubmit, onClose }: ContactFormProp
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-      <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+      <div style={{ background: 'var(--cm-surface)', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 0', flexShrink: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: '#10263e', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
             {initial ? 'Editar contacto' : 'Nuevo contacto'}
           </h2>
-          <button onClick={onClose} disabled={busy} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#8295a8', padding: 4, borderRadius: 6 }}>
+          <button onClick={onClose} disabled={busy} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--cm-muted)', padding: 4, borderRadius: 6 }}>
             <X size={20} />
           </button>
         </div>
@@ -199,11 +199,11 @@ function ContactForm({ initial, facilities, onSubmit, onClose }: ContactFormProp
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
             <button type="button" onClick={() => { setForm(emptyForm); setError(''); }} disabled={busy}
-              style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: '#526479', fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 13 }}>
+              style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 13 }}>
               Limpiar
             </button>
             <button type="button" onClick={onClose} disabled={busy}
-              style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: '#526479', fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 13 }}>
+              style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif', fontSize: 13 }}>
               Cancelar
             </button>
             <button type="submit" disabled={busy}
@@ -234,8 +234,8 @@ function ConfirmContactModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-      <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.3)', padding: '28px 28px 24px', fontFamily: 'Arial,Helvetica,sans-serif' }}>
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: '#10263e' }}>
+      <div style={{ background: 'var(--cm-surface)', borderRadius: 14, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.3)', padding: '28px 28px 24px', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: 'var(--cm-text)' }}>
           {action === 'deactivate' ? 'Desactivar contacto' : 'Reactivar contacto'}
         </h3>
         <p style={{ margin: '0 0 20px', fontSize: 14, color: '#4a5568', lineHeight: 1.5 }}>
@@ -245,7 +245,7 @@ function ConfirmContactModal({
         {error && <p style={{ margin: '0 0 12px', color: '#c41e32', fontSize: 13 }}>{error}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button onClick={onClose} disabled={busy}
-            style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: '#526479', fontSize: 13 }}>
+            style={{ background: 'none', border: '1px solid #cdd5df', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', color: 'var(--cm-muted)', fontSize: 13 }}>
             Cancelar
           </button>
           <button onClick={run} disabled={busy}
@@ -270,22 +270,22 @@ type ContactCardProps = {
 function ContactCard({ contact, facilityName, onEdit, onToggleActive }: ContactCardProps) {
   const cat = contact.category;
   return (
-    <div style={{ background: 'white', borderRadius: 10, border: '1px solid #dfe6ef', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ background: 'var(--cm-surface)', borderRadius: 10, border: '1px solid var(--cm-line)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <User size={15} style={{ color: '#8295a8', flexShrink: 0 }} />
-        <span style={{ fontWeight: 800, fontSize: 14, color: '#10263e', fontFamily: 'Arial,Helvetica,sans-serif', flex: 1 }}>
+        <User size={15} style={{ color: 'var(--cm-muted)', flexShrink: 0 }} />
+        <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--cm-text)', fontFamily: 'Arial,Helvetica,sans-serif', flex: 1 }}>
           {contact.first_name} {contact.last_name}
         </span>
         <span style={{ fontSize: 11, fontWeight: 700, color: CATEGORY_COLOR[cat], background: `${CATEGORY_COLOR[cat]}18`, borderRadius: 12, padding: '3px 9px', fontFamily: 'Arial,Helvetica,sans-serif' }}>
           {CATEGORY_LABEL[cat]}
         </span>
         {!contact.active && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#8295a8', background: '#f0f4f9', borderRadius: 12, padding: '3px 9px', fontFamily: 'Arial,Helvetica,sans-serif' }}>Inactivo</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--cm-muted)', background: 'var(--cm-raised)', borderRadius: 12, padding: '3px 9px', fontFamily: 'Arial,Helvetica,sans-serif' }}>Inactivo</span>
         )}
       </div>
 
       {(contact.email || contact.phone || facilityName) && (
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#728499', fontFamily: 'Arial,Helvetica,sans-serif', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif', alignItems: 'center' }}>
           {contact.email && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Mail size={11} /> <strong style={{ color: '#4a5568' }}>{contact.email}</strong>
@@ -305,7 +305,7 @@ function ContactCard({ contact, facilityName, onEdit, onToggleActive }: ContactC
       )}
 
       {contact.notes && (
-        <p style={{ margin: 0, fontSize: 12, color: '#728499', fontFamily: 'Arial,Helvetica,sans-serif', lineHeight: 1.4 }}>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--cm-muted)', fontFamily: 'Arial,Helvetica,sans-serif', lineHeight: 1.4 }}>
           {contact.notes}
         </p>
       )}
@@ -387,16 +387,16 @@ export default function ContactManager({ companies }: Props) {
         />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f3f5f8', fontFamily: 'Arial,Helvetica,sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--cm-raised)', fontFamily: 'Arial,Helvetica,sans-serif' }}>
         {/* Toolbar */}
         <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Building size={15} style={{ color: '#8295a8' }} />
+              <Building size={15} style={{ color: 'var(--cm-muted)' }} />
               <select
                 value={companyId}
                 onChange={e => { setCompanyId(e.target.value); setSearch(''); setCategoryFilter('all'); }}
-                style={{ border: '1px solid #dfe6ef', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: '#10263e', background: 'white', cursor: 'pointer', minWidth: 220 }}
+                style={{ border: '1px solid var(--cm-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: 'var(--cm-text)', background: 'var(--cm-surface)', cursor: 'pointer', minWidth: 220 }}
               >
                 <option value="">— Seleccioná una empresa —</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -409,12 +409,12 @@ export default function ContactManager({ companies }: Props) {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar contacto…"
-                  style={{ border: '1px solid #dfe6ef', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: '#10263e', background: 'white', flex: 1, minWidth: 160 }}
+                  style={{ border: '1px solid var(--cm-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: 'var(--cm-text)', background: 'var(--cm-surface)', flex: 1, minWidth: 160 }}
                 />
                 <select
                   value={categoryFilter}
                   onChange={e => setCategoryFilter(e.target.value as ContactCategory | 'all')}
-                  style={{ border: '1px solid #dfe6ef', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: '#10263e', background: 'white', cursor: 'pointer' }}
+                  style={{ border: '1px solid var(--cm-line)', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'Arial,Helvetica,sans-serif', color: 'var(--cm-text)', background: 'var(--cm-surface)', cursor: 'pointer' }}
                 >
                   <option value="all">Todas las categorías</option>
                   <option value="commercial">Comercial</option>
@@ -436,21 +436,21 @@ export default function ContactManager({ companies }: Props) {
         {/* Body */}
         {!companyId ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: '#8295a8', fontSize: 14 }}>Seleccioná una empresa para ver sus contactos.</p>
+            <p style={{ color: 'var(--cm-muted)', fontSize: 14 }}>Seleccioná una empresa para ver sus contactos.</p>
           </div>
         ) : (
           <div style={{ flex: 1, overflow: 'auto', margin: '16px 20px' }}>
-            <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e0e6ef' }}>
+            <div style={{ background: 'var(--cm-surface)', borderRadius: 12, border: '1px solid var(--cm-line)' }}>
               <div style={{ padding: '14px 16px', borderBottom: '1px solid #e8edf4' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#10263e' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cm-text)' }}>
                   Contactos {contacts.length > 0 && `(${contacts.length})`}
                 </span>
               </div>
 
-              {contactsQ.isLoading && <p style={{ padding: 16, color: '#8295a8', fontSize: 13 }}>Cargando…</p>}
+              {contactsQ.isLoading && <p style={{ padding: 16, color: 'var(--cm-muted)', fontSize: 13 }}>Cargando…</p>}
               {contactsQ.error && <p style={{ padding: 16, color: '#c41e32', fontSize: 13 }}>Error: {contactsQ.error.message}</p>}
               {!contactsQ.isLoading && filtered.length === 0 && (
-                <p style={{ padding: 16, color: '#8295a8', fontSize: 13 }}>
+                <p style={{ padding: 16, color: 'var(--cm-muted)', fontSize: 13 }}>
                   {search || categoryFilter !== 'all' ? 'Sin resultados.' : 'Sin contactos. Creá el primero.'}
                 </p>
               )}
